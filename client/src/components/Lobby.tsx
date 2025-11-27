@@ -70,7 +70,16 @@ export function Lobby() {
                         ))}
                     </ul>
                     <div className="mt-6 text-center text-sm text-muted-foreground">
-                        Waiting for owner to start game...
+                        {players.find(p => p.id === socket.id)?.isOwner ? (
+                            <button
+                                onClick={() => socket.emit('start_game')}
+                                className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded font-medium"
+                            >
+                                Start Game
+                            </button>
+                        ) : (
+                            'Waiting for owner to start game...'
+                        )}
                     </div>
                 </div>
             </div>

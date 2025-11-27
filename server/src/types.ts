@@ -1,5 +1,5 @@
-export type Suit = 'Spades' | 'Hearts' | 'Clubs' | 'Diamonds';
-export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
+export type Suit = 'Spades' | 'Hearts' | 'Clubs' | 'Diamonds' | 'Joker';
+export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A' | 'Big' | 'Small';
 
 export interface Card {
     suit: Suit;
@@ -14,11 +14,25 @@ export interface Player {
     isOwner: boolean;
 }
 
+export interface TeamState {
+    score: number;
+    declaredSets: string[];
+}
+
 export interface GameState {
     roomId: string;
     status: 'LOBBY' | 'IN_GAME' | 'GAME_OVER';
     players: Player[];
     settings: {
         maxPlayers: number;
+    };
+    gameData: {
+        deck: Card[];
+        turnIndex: number;
+        teams: {
+            A: TeamState;
+            B: TeamState;
+        };
+        log: string[];
     };
 }
