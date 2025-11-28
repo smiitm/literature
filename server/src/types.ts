@@ -34,5 +34,13 @@ export interface GameState {
             B: TeamState;
         };
         log: string[];
+        lastAsk?: LastAsk;
     };
+}
+
+export interface LastAsk {
+    askerName: string;
+    targetName: string;
+    card: Card;
+    success: boolean;
 }

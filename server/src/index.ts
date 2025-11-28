@@ -21,6 +21,32 @@ const generateRoomId = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+const getSetName = (card: Card): string => {
+    if (card.rank === '7' || card.suit === 'Joker') return 'Sevens';
+    if (['A', '2', '3', '4', '5', '6'].includes(card.rank)) return `Low ${card.suit}`;
+    if (['8', '9', '10', 'J', 'Q', 'K'].includes(card.rank)) return `High ${card.suit}`;
+    return 'Unknown';
+};
+
+const getSetCards = (setName: string): Card[] => {
+    if (setName === 'Sevens') {
+        return [
+            { suit: 'Spades', rank: '7' },
+            { suit: 'Hearts', rank: '7' },
+            { suit: 'Clubs', rank: '7' },
+            { suit: 'Diamonds', rank: '7' },
+            { suit: 'Joker', rank: 'Big' },
+            { suit: 'Joker', rank: 'Small' }
+        ];
+    }
+    const [range, suit] = setName.split(' ');
+    const ranks = range === 'Low'
+        ? ['A', '2', '3', '4', '5', '6']
+        : ['8', '9', '10', 'J', 'Q', 'K'];
+
+    return ranks.map(rank => ({ suit: suit as Suit, rank: rank as Rank }));
+};
+
 io.on('connection', (socket: Socket) => {
     console.log(`User connected: ${socket.id}`);
 
@@ -169,6 +195,177 @@ io.on('connection', (socket: Socket) => {
         console.log(`Game started in room ${game!.roomId}`);
     });
 
+    socket.on('ask_card', ({ targetId, card }: { targetId: string, card: Card }) => {
+        // Find game
+        let game: GameState | undefined;
+        let playerIndex = -1;
+        rooms.forEach(g => {
+            const idx = g.players.findIndex(p => p.id === socket.id);
+            if (idx !== -1) {
+                game = g;
+                playerIndex = idx;
+            }
+        });
+
+        if (!game) return;
+
+        const player = game.players[playerIndex];
+
+        // 1. Validate Turn
+        if (game.gameData.turnIndex !== playerIndex) {
+            socket.emit('error', { message: "It's not your turn" });
+            return;
+        }
+
+        // 2. Validate Target
+        const targetIndex = game.players.findIndex(p => p.id === targetId);
+        if (targetIndex === -1) {
+            socket.emit('error', { message: "Target player not found" });
+            return;
+        }
+        const target = game.players[targetIndex];
+
+        if (player.team === target.team) {
+            socket.emit('error', { message: "Cannot ask teammate" });
+            return;
+        }
+
+        // 3. Validate Player has Base (at least one card of the SET)
+        const requestedSet = getSetName(card);
+        const hasBase = player.hand.some(c => getSetName(c) === requestedSet);
+
+        if (!hasBase) {
+            socket.emit('error', { message: `You must have a card of the "${requestedSet}" set to ask` });
+            return;
+        }
+
+        // 4. Validate Player doesn't have the card
+        if (player.hand.some(c => c.suit === card.suit && c.rank === card.rank)) {
+            socket.emit('error', { message: "You already have this card" });
+            return;
+        }
+
+        // 5. Check if Target has the card
+        const cardIndex = target.hand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
+        const success = cardIndex !== -1;
+
+        // Update Last Ask
+        game.gameData.lastAsk = {
+            askerName: player.name,
+            targetName: target.name,
+            card: card,
+            success: success
+        };
+
+        if (success) {
+            // Transfer Card
+            const [transferredCard] = target.hand.splice(cardIndex, 1);
+            player.hand.push(transferredCard);
+
+            // Turn remains with asker
+            game.gameData.log.push(`${player.name} took ${card.rank} of ${card.suit} from ${target.name}`);
+        } else {
+            // Turn passes to target
+            game.gameData.turnIndex = targetIndex;
+            game.gameData.log.push(`${player.name} asked ${target.name} for ${card.rank} of ${card.suit} and missed`);
+        }
+
+        // Emit Updates
+        emitGameState(game, io);
+    });
+
+    socket.on('declare_set', ({ declaration }: { declaration: { card: Card, playerId: string }[] }) => {
+        // Find game
+        let game: GameState | undefined;
+        let playerIndex = -1;
+        rooms.forEach(g => {
+            const idx = g.players.findIndex(p => p.id === socket.id);
+            if (idx !== -1) {
+                game = g;
+                playerIndex = idx;
+            }
+        });
+
+        if (!game) return;
+
+        const player = game.players[playerIndex];
+
+        // 1. Validate Turn
+        if (game.gameData.turnIndex !== playerIndex) {
+            socket.emit('error', { message: "It's not your turn" });
+            return;
+        }
+
+        // 2. Validate Set Consistency
+        if (declaration.length === 0) return;
+        const firstCard = declaration[0].card;
+        const setName = getSetName(firstCard);
+
+        // Verify all cards belong to the same set and the set is complete (6 cards)
+        // We need to know the full expected set to verify completeness.
+        const expectedSet = getSetCards(setName);
+        if (declaration.length !== expectedSet.length) {
+            socket.emit('error', { message: `Invalid declaration: Set ${setName} requires ${expectedSet.length} cards` });
+            return;
+        }
+
+        // Check if all expected cards are in the declaration
+        const allPresent = expectedSet.every(ec =>
+            declaration.some(dc => dc.card.suit === ec.suit && dc.card.rank === ec.rank)
+        );
+
+        if (!allPresent) {
+            socket.emit('error', { message: "Invalid declaration: Missing cards from set" });
+            return;
+        }
+
+        // 3. Verify Ownership (The Core Logic)
+        let correct = true;
+        for (const decl of declaration) {
+            const targetPlayer = game.players.find(p => p.id === decl.playerId);
+            if (!targetPlayer) {
+                correct = false;
+                break;
+            }
+            // Check if player actually holds the card
+            const hasCard = targetPlayer.hand.some(c => c.suit === decl.card.suit && c.rank === decl.card.rank);
+            if (!hasCard) {
+                correct = false;
+                // In strict Lit, we might want to know WHICH card was wrong, but usually just "Wrong" is enough.
+                console.log(`Declaration failed: ${targetPlayer.name} does not have ${decl.card.rank} of ${decl.card.suit}`);
+                break;
+            }
+        }
+
+        // 4. Update Score and Remove Cards
+        const scoringTeam = correct ? player.team : (player.team === 'A' ? 'B' : 'A');
+        if (scoringTeam) {
+            game.gameData.teams[scoringTeam].score += 1;
+            game.gameData.teams[scoringTeam].declaredSets.push(setName);
+        }
+
+        // Remove cards from ALL players' hands
+        game.players.forEach(p => {
+            p.hand = p.hand.filter(c => getSetName(c) !== setName);
+        });
+
+        // Log
+        const result = correct ? "correctly" : "incorrectly";
+        game.gameData.log.push(`${player.name} declared ${setName} ${result}`);
+
+        // Turn Logic after Declaration:
+        // If correct, turn remains? Or passes?
+        // Usually: If correct, you keep turn. If incorrect, turn passes to opponent?
+        // Or turn passes to the player who had the card you asked for?
+        // Let's assume: Correct -> Keep turn. Incorrect -> Turn passes to next player (or specific rule).
+        // For simplicity: Incorrect -> Turn passes to next player in sequence.
+        if (!correct) {
+            game.gameData.turnIndex = (game.gameData.turnIndex + 1) % game.players.length;
+        }
+
+        emitGameState(game, io);
+    });
+
     socket.on('disconnect', () => {
         console.log(`User disconnected: ${socket.id}`);
         // Handle player removal if in lobby
@@ -190,6 +387,30 @@ io.on('connection', (socket: Socket) => {
         });
     });
 });
+
+// Helper to emit game state to all players securely
+const emitGameState = (game: GameState, io: Server) => {
+    game.players.forEach(player => {
+        io.to(player.id).emit('game_update', {
+            hand: player.hand,
+            turnIndex: game.gameData.turnIndex,
+            players: game.players.map(p => ({
+                ...p,
+                hand: [], // Hide hands
+                cardCount: p.hand.length // Useful for UI
+            })),
+            lastAsk: game.gameData.lastAsk,
+            log: game.gameData.log,
+            myTeam: player.team,
+            scores: {
+                A: game.gameData.teams.A.score,
+                B: game.gameData.teams.B.score
+            }
+        });
+    });
+};
+
+
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
