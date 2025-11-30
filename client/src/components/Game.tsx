@@ -34,6 +34,10 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
     const [players, setPlayers] = useState<Player[]>(initialPlayers);
     const [lastAsk, setLastAsk] = useState<LastAsk | null>(null);
     const [log, setLog] = useState<string[]>([]);
+    const [turnState, setTurnState] = useState<'NORMAL' | 'PASSING_TURN'>('NORMAL');
+    const [winner, setWinner] = useState<'A' | 'B' | 'DRAW' | undefined>(undefined);
+    const [passTarget, setPassTarget] = useState<string>('');
+    const [scores, setScores] = useState<{ A: number, B: number }>({ A: 0, B: 0 });
 
     // Ask Card State
     const [selectedOpponent, setSelectedOpponent] = useState<string>('');
@@ -58,7 +62,11 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
             setTurnIndex(data.turnIndex);
             setPlayers(data.players);
             if (data.lastAsk) setLastAsk(data.lastAsk);
+            if (data.lastAsk) setLastAsk(data.lastAsk);
             if (data.log) setLog(data.log);
+            if (data.turnState) setTurnState(data.turnState);
+            if (data.winner) setWinner(data.winner);
+            if (data.scores) setScores(data.scores);
         });
 
         return () => {
@@ -116,6 +124,12 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
         setDeclarationMap({});
     };
 
+    const handlePassTurn = () => {
+        if (!passTarget) return;
+        socket.emit('pass_turn', { targetId: passTarget });
+        setPassTarget('');
+    };
+
     const getSuitIcon = (suit: string) => {
         switch (suit) {
             case 'Spades': return '♠️';
@@ -131,9 +145,28 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
         return ['Hearts', 'Diamonds'].includes(suit) ? 'text-red-500' : 'text-foreground';
     };
 
-    const opponents = players.filter(p => p.id !== socket.id && p.team !== myTeam);
+    const opponents = players.filter(p => p.id !== socket.id && p.team !== myTeam && (p.cardCount ?? 0) > 0);
     const suits = ['Spades', 'Hearts', 'Clubs', 'Diamonds', 'Joker'];
     const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'Big', 'Small'];
+
+    if (winner) {
+        return (
+            <div className="flex flex-col h-screen items-center justify-center bg-background text-foreground gap-8">
+                <h1 className="text-6xl font-bold animate-bounce">
+                    {winner === 'DRAW' ? 'It\'s a Draw!' : `Team ${winner} Wins!`}
+                </h1>
+                <div className="text-2xl">
+                    Final Score - Team A: {scores.A} | Team B: {scores.B}
+                </div>
+                <button
+                    className="bg-primary text-primary-foreground px-8 py-4 rounded-lg text-xl font-bold hover:bg-primary/90"
+                    onClick={() => window.location.reload()}
+                >
+                    Back to Lobby
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-screen bg-background text-foreground">
@@ -150,9 +183,8 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                     {isMyTurn && <div className="text-green-500 font-bold animate-pulse">YOUR TURN</div>}
                 </div>
                 <div className="flex gap-4">
-                    {/* Scores placeholder */}
-                    <div className="text-blue-500 font-bold">Team A: 0</div>
-                    <div className="text-green-500 font-bold">Team B: 0</div>
+                    <div className="text-blue-500 font-bold">Team A: {scores.A}</div>
+                    <div className="text-green-500 font-bold">Team B: {scores.B}</div>
                 </div>
             </div>
 
@@ -182,58 +214,81 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                     ))}
                 </div>
 
-                {/* Action Area (Ask / Declare) */}
+                {/* Action Area (Ask / Declare / Pass) */}
                 {isMyTurn && (
                     <div className="flex flex-col gap-4 w-full max-w-4xl items-center">
-                        <div className="bg-card p-4 rounded-lg border shadow-lg flex gap-4 items-end">
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-semibold">Ask Opponent</label>
+                        {turnState === 'PASSING_TURN' ? (
+                            <div className="bg-card p-6 rounded-lg border shadow-lg flex flex-col gap-4 items-center">
+                                <h3 className="text-xl font-bold text-destructive">You have no cards! Pass your turn.</h3>
                                 <select
-                                    className="p-2 border rounded bg-background"
-                                    value={selectedOpponent}
-                                    onChange={(e) => setSelectedOpponent(e.target.value)}
+                                    className="p-2 border rounded bg-background w-64"
+                                    value={passTarget}
+                                    onChange={(e) => setPassTarget(e.target.value)}
                                 >
-                                    <option value="">Select...</option>
-                                    {opponents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    <option value="">Select Teammate...</option>
+                                    {players.filter(p => p.team === myTeam && p.id !== socket.id).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
                                 </select>
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-semibold">Rank</label>
-                                <select
-                                    className="p-2 border rounded bg-background"
-                                    value={askRank}
-                                    onChange={(e) => setAskRank(e.target.value)}
+                                <button
+                                    className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                                    onClick={handlePassTurn}
+                                    disabled={!passTarget}
                                 >
-                                    <option value="">Select...</option>
-                                    {ranks.map(r => <option key={r} value={r}>{r}</option>)}
-                                </select>
+                                    Pass Turn
+                                </button>
                             </div>
-                            <div className="flex flex-col gap-1">
-                                <label className="text-xs font-semibold">Suit</label>
-                                <select
-                                    className="p-2 border rounded bg-background"
-                                    value={askSuit}
-                                    onChange={(e) => setAskSuit(e.target.value)}
+                        ) : (
+                            <div className="bg-card p-4 rounded-lg border shadow-lg flex gap-4 items-end">
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-semibold">Ask Opponent</label>
+                                    <select
+                                        className="p-2 border rounded bg-background"
+                                        value={selectedOpponent}
+                                        onChange={(e) => setSelectedOpponent(e.target.value)}
+                                    >
+                                        <option value="">Select...</option>
+                                        {opponents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-semibold">Rank</label>
+                                    <select
+                                        className="p-2 border rounded bg-background"
+                                        value={askRank}
+                                        onChange={(e) => setAskRank(e.target.value)}
+                                    >
+                                        <option value="">Select...</option>
+                                        {ranks.map(r => <option key={r} value={r}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs font-semibold">Suit</label>
+                                    <select
+                                        className="p-2 border rounded bg-background"
+                                        value={askSuit}
+                                        onChange={(e) => setAskSuit(e.target.value)}
+                                    >
+                                        <option value="">Select...</option>
+                                        {suits.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <button
+                                    className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                                    onClick={handleAsk}
+                                    disabled={!selectedOpponent || !askRank || !askSuit}
                                 >
-                                    <option value="">Select...</option>
-                                    {suits.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                            <button
-                                className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-                                onClick={handleAsk}
-                                disabled={!selectedOpponent || !askRank || !askSuit}
-                            >
-                                Ask Card
-                            </button>
+                                    Ask Card
+                                </button>
 
-                            <button
-                                className="bg-destructive text-destructive-foreground px-4 py-2 rounded hover:bg-destructive/90 ml-4"
-                                onClick={() => setIsDeclaring(!isDeclaring)}
-                            >
-                                {isDeclaring ? 'Cancel Declare' : 'Declare Set'}
-                            </button>
-                        </div>
+                                <button
+                                    className="bg-destructive text-destructive-foreground px-4 py-2 rounded hover:bg-destructive/90 ml-4"
+                                    onClick={() => setIsDeclaring(!isDeclaring)}
+                                >
+                                    {isDeclaring ? 'Cancel Declare' : 'Declare Set'}
+                                </button>
+                            </div>
+                        )}
 
                         {/* Declaration Form */}
                         {isDeclaring && (

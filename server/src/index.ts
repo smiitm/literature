@@ -72,7 +72,9 @@ io.on('connection', (socket: Socket) => {
                     A: { score: 0, declaredSets: [] },
                     B: { score: 0, declaredSets: [] }
                 },
-                log: []
+                log: [],
+                discardedSets: [],
+                turnState: 'NORMAL'
             }
         };
 
@@ -230,6 +232,11 @@ io.on('connection', (socket: Socket) => {
             return;
         }
 
+        if (target.hand.length === 0) {
+            socket.emit('error', { message: "Target has no cards" });
+            return;
+        }
+
         // 3. Validate Player has Base (at least one card of the SET)
         const requestedSet = getSetName(card);
         const hasBase = player.hand.some(c => getSetName(c) === requestedSet);
@@ -301,15 +308,12 @@ io.on('connection', (socket: Socket) => {
         const firstCard = declaration[0].card;
         const setName = getSetName(firstCard);
 
-        // Verify all cards belong to the same set and the set is complete (6 cards)
-        // We need to know the full expected set to verify completeness.
         const expectedSet = getSetCards(setName);
         if (declaration.length !== expectedSet.length) {
             socket.emit('error', { message: `Invalid declaration: Set ${setName} requires ${expectedSet.length} cards` });
             return;
         }
 
-        // Check if all expected cards are in the declaration
         const allPresent = expectedSet.every(ec =>
             declaration.some(dc => dc.card.suit === ec.suit && dc.card.rank === ec.rank)
         );
@@ -319,7 +323,7 @@ io.on('connection', (socket: Socket) => {
             return;
         }
 
-        // 3. Verify Ownership (The Core Logic)
+        // 3. Verify Ownership & Scoring
         let correct = true;
         for (const decl of declaration) {
             const targetPlayer = game.players.find(p => p.id === decl.playerId);
@@ -327,21 +331,23 @@ io.on('connection', (socket: Socket) => {
                 correct = false;
                 break;
             }
-            // Check if player actually holds the card
             const hasCard = targetPlayer.hand.some(c => c.suit === decl.card.suit && c.rank === decl.card.rank);
             if (!hasCard) {
                 correct = false;
-                // In strict Lit, we might want to know WHICH card was wrong, but usually just "Wrong" is enough.
-                console.log(`Declaration failed: ${targetPlayer.name} does not have ${decl.card.rank} of ${decl.card.suit}`);
                 break;
             }
         }
 
-        // 4. Update Score and Remove Cards
-        const scoringTeam = correct ? player.team : (player.team === 'A' ? 'B' : 'A');
-        if (scoringTeam) {
-            game.gameData.teams[scoringTeam].score += 1;
-            game.gameData.teams[scoringTeam].declaredSets.push(setName);
+        // Check if opponent team held any card (for scoring on failure)
+        let opponentHasCard = false;
+        if (!correct) {
+            for (const card of expectedSet) {
+                const holder = game.players.find(p => p.hand.some(c => c.suit === card.suit && c.rank === card.rank));
+                if (holder && holder.team !== player.team) {
+                    opponentHasCard = true;
+                    break;
+                }
+            }
         }
 
         // Remove cards from ALL players' hands
@@ -349,19 +355,82 @@ io.on('connection', (socket: Socket) => {
             p.hand = p.hand.filter(c => getSetName(c) !== setName);
         });
 
-        // Log
-        const result = correct ? "correctly" : "incorrectly";
-        game.gameData.log.push(`${player.name} declared ${setName} ${result}`);
+        // 4. Update Score and Turn
+        if (correct) {
+            if (player.team) {
+                game.gameData.teams[player.team].score += 1;
+                game.gameData.teams[player.team].declaredSets.push(setName);
+            }
+            game.gameData.log.push(`${player.name} declared ${setName} correctly`);
 
-        // Turn Logic after Declaration:
-        // If correct, turn remains? Or passes?
-        // Usually: If correct, you keep turn. If incorrect, turn passes to opponent?
-        // Or turn passes to the player who had the card you asked for?
-        // Let's assume: Correct -> Keep turn. Incorrect -> Turn passes to next player (or specific rule).
-        // For simplicity: Incorrect -> Turn passes to next player in sequence.
-        if (!correct) {
+            // Turn Logic: Correct -> Keep turn (unless empty hand)
+            if (player.hand.length === 0) {
+                game.gameData.turnState = 'PASSING_TURN';
+            }
+        } else {
+            if (opponentHasCard) {
+                const opponentTeam = player.team === 'A' ? 'B' : 'A';
+                game.gameData.teams[opponentTeam].score += 1;
+                game.gameData.teams[opponentTeam].declaredSets.push(setName);
+                game.gameData.log.push(`${player.name} declared ${setName} incorrectly. Opponent gets point.`);
+            } else {
+                game.gameData.discardedSets.push(setName);
+                game.gameData.log.push(`${player.name} declared ${setName} incorrectly. No point awarded.`);
+            }
+
+            // Turn Logic: Incorrect -> Pass turn to next player
             game.gameData.turnIndex = (game.gameData.turnIndex + 1) % game.players.length;
         }
+
+        // 5. Check Game Over
+        const totalSets = 9;
+        const declared = game.gameData.teams.A.declaredSets.length + game.gameData.teams.B.declaredSets.length + game.gameData.discardedSets.length;
+        if (declared === totalSets) {
+            game.status = 'GAME_OVER';
+            if (game.gameData.teams.A.score > game.gameData.teams.B.score) game.gameData.winner = 'A';
+            else if (game.gameData.teams.B.score > game.gameData.teams.A.score) game.gameData.winner = 'B';
+            else game.gameData.winner = 'DRAW';
+        }
+
+        emitGameState(game, io);
+    });
+
+    socket.on('pass_turn', ({ targetId }: { targetId: string }) => {
+        let game: GameState | undefined;
+        let playerIndex = -1;
+        rooms.forEach(g => {
+            const idx = g.players.findIndex(p => p.id === socket.id);
+            if (idx !== -1) {
+                game = g;
+                playerIndex = idx;
+            }
+        });
+
+        if (!game) return;
+        const player = game.players[playerIndex];
+
+        if (game.gameData.turnIndex !== playerIndex) {
+            socket.emit('error', { message: "It's not your turn" });
+            return;
+        }
+
+        if (player.hand.length > 0) {
+            socket.emit('error', { message: "You still have cards" });
+            return;
+        }
+
+        const targetIndex = game.players.findIndex(p => p.id === targetId);
+        if (targetIndex === -1) return;
+        const target = game.players[targetIndex];
+
+        if (target.team !== player.team) {
+            socket.emit('error', { message: "Must pass to teammate" });
+            return;
+        }
+
+        game.gameData.turnIndex = targetIndex;
+        game.gameData.turnState = 'NORMAL';
+        game.gameData.log.push(`${player.name} passed turn to ${target.name}`);
 
         emitGameState(game, io);
     });
@@ -405,7 +474,10 @@ const emitGameState = (game: GameState, io: Server) => {
             scores: {
                 A: game.gameData.teams.A.score,
                 B: game.gameData.teams.B.score
-            }
+            },
+            discardedSets: game.gameData.discardedSets,
+            turnState: game.gameData.turnState,
+            winner: game.gameData.winner
         });
     });
 };

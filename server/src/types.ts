@@ -35,6 +35,9 @@ export interface GameState {
         };
         log: string[];
         lastAsk?: LastAsk;
+        discardedSets: string[];
+        turnState: 'NORMAL' | 'PASSING_TURN';
+        winner?: 'A' | 'B' | 'DRAW';
     };
 }
 
