@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
+import { ModeToggle } from './mode-toggle';
 
 interface Player {
     id: string;
@@ -7,39 +8,27 @@ interface Player {
     isOwner: boolean;
 }
 
-export function Lobby() {
+interface LobbyProps {
+    roomId: string;
+    players: Player[];
+}
+
+export function Lobby({ roomId, players }: LobbyProps) {
     const [playerName, setPlayerName] = useState('');
     const [roomCode, setRoomCode] = useState('');
-    const [isInLobby, setIsInLobby] = useState(false);
-    const [currentRoom, setCurrentRoom] = useState('');
-    const [players, setPlayers] = useState<Player[]>([]);
     const [error, setError] = useState('');
 
+    // Effect to clear error when room changes
     useEffect(() => {
-        socket.on('game_created', ({ roomId }) => {
-            setIsInLobby(true);
-            setCurrentRoom(roomId);
-            setError('');
-        });
+        setError('');
+    }, [roomId]);
 
-        socket.on('joined_game', ({ roomId }) => {
-            setIsInLobby(true);
-            setCurrentRoom(roomId);
-            setError('');
-        });
-
-        socket.on('player_update', (updatedPlayers: Player[]) => {
-            setPlayers(updatedPlayers);
-        });
-
+    useEffect(() => {
         socket.on('error', ({ message }) => {
             setError(message);
         });
 
         return () => {
-            socket.off('game_created');
-            socket.off('joined_game');
-            socket.off('player_update');
             socket.off('error');
         };
     }, []);
@@ -55,10 +44,13 @@ export function Lobby() {
         socket.emit('join_game', { roomCode, playerName });
     };
 
-    if (isInLobby) {
+    if (roomId) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
-                <h1 className="text-4xl font-bold mb-8">Lobby: {currentRoom}</h1>
+            <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground relative">
+                <div className="absolute top-4 right-4">
+                    <ModeToggle />
+                </div>
+                <h1 className="text-4xl font-bold mb-8">Lobby: {roomId}</h1>
                 <div className="w-full max-w-md p-6 bg-card rounded-lg shadow-lg border">
                     <h2 className="text-2xl font-semibold mb-4">Players</h2>
                     <ul className="space-y-2">
@@ -87,7 +79,10 @@ export function Lobby() {
     }
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground relative">
+            <div className="absolute top-4 right-4">
+                <ModeToggle />
+            </div>
             <h1 className="text-5xl font-bold mb-12">Literature</h1>
 
             <div className="w-full max-w-md p-8 bg-card rounded-xl shadow-xl border space-y-6">
