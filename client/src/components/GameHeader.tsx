@@ -1,4 +1,6 @@
 import { ModeToggle } from './mode-toggle';
+import { Button } from '@/components/ui/button';
+import { disconnectSocket } from '@/lib/socketManager';
 import { getTeamColor, getSuitIcon, type Card } from '@/lib/gameUtils';
 
 interface LastAsk {
@@ -14,9 +16,23 @@ interface GameHeaderProps {
 }
 
 export function GameHeader({ lastAsk, scores }: GameHeaderProps) {
+    const handleLeaveRoom = () => {
+        disconnectSocket();
+        window.location.reload();
+    };
+
     return (
         <div className="p-4 border-b bg-card flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Literature</h1>
+            <div className="flex items-center gap-4">
+                <h1 className="text-2xl font-bold">Literature</h1>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLeaveRoom}
+                >
+                    Leave
+                </Button>
+            </div>
 
             {/* Last Transaction */}
             <div className="flex-1 text-center">

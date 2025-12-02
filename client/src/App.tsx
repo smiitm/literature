@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Lobby } from './pages/Lobby';
 import { Game } from './pages/Game';
 import { socket } from './socket';
+import { connectSocket, getSession } from './lib/socketManager';
 import { ThemeProvider } from './components/theme-provider';
 
 interface Player {
@@ -19,6 +20,31 @@ function App() {
   const [myTeam, setMyTeam] = useState<'A' | 'B' | null>(null);
   const [hand, setHand] = useState<any[]>([]);
   const [turnIndex, setTurnIndex] = useState<number>(0);
+  const [isReconnecting, setIsReconnecting] = useState(true);
+
+  // Auto-reconnect to saved session on page load
+  useEffect(() => {
+    const initializeSession = async () => {
+      const session = getSession();
+
+      if (session) {
+        try {
+          await connectSocket();
+
+          socket.emit('join_game', {
+            roomCode: session.roomId,
+            playerName: session.playerName
+          });
+        } catch (err) {
+          console.error('Failed to reconnect:', err);
+        }
+      }
+
+      setIsReconnecting(false);
+    };
+
+    initializeSession();
+  }, []);
 
   useEffect(() => {
     socket.on('joined_game', ({ roomId }) => {
@@ -48,6 +74,17 @@ function App() {
       socket.off('game_started_personal');
     };
   }, []);
+
+  // Show loading during reconnection
+  if (isReconnecting) {
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+          <div className="text-2xl font-semibold">Reconnecting...</div>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">

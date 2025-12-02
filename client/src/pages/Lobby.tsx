@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
+import { connectSocket, saveSession, disconnectSocket } from '../lib/socketManager';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,7 +34,11 @@ export function Lobby({ roomId, players }: LobbyProps) {
     // Effect to clear error when room changes
     useEffect(() => {
         setError('');
-    }, [roomId]);
+        // Save session when successfully joined/created room
+        if (roomId && playerName) {
+            saveSession(roomId, playerName);
+        }
+    }, [roomId, playerName]);
 
     useEffect(() => {
         socket.on('error', ({ message }) => {
@@ -45,17 +50,40 @@ export function Lobby({ roomId, players }: LobbyProps) {
         };
     }, []);
 
-    const handleCreateRoom = () => {
+    const handleCreateRoom = async () => {
         if (!playerName) return setError('Name is required');
-        socket.emit('create_game', { playerName });
-        setShowCreateModal(false);
+
+        try {
+            // Connect socket
+            await connectSocket();
+
+            // Emit create_game
+            socket.emit('create_game', { playerName });
+            setShowCreateModal(false);
+        } catch (err) {
+            setError('Failed to connect to server');
+        }
     };
 
-    const handleJoinRoom = () => {
+    const handleJoinRoom = async () => {
         if (!playerName) return setError('Name is required');
         if (!roomCode) return setError('Room Code is required');
-        socket.emit('join_game', { roomCode, playerName });
-        setShowJoinModal(false);
+
+        try {
+            // Connect socket
+            await connectSocket();
+
+            // Emit join_game
+            socket.emit('join_game', { roomCode, playerName });
+            setShowJoinModal(false);
+        } catch (err) {
+            setError('Failed to connect to server');
+        }
+    };
+
+    const handleLeaveRoom = () => {
+        disconnectSocket();
+        window.location.reload();
     };
 
     if (roomId) {
@@ -85,6 +113,14 @@ export function Lobby({ roomId, players }: LobbyProps) {
                         ) : (
                             'Waiting for owner to start game...'
                         )}
+                    </div>
+                    <div className="mt-4 text-center">
+                        <Button
+                            variant="outline"
+                            onClick={handleLeaveRoom}
+                        >
+                            Leave Room
+                        </Button>
                     </div>
                 </div>
             </div>
