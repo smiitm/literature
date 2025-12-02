@@ -1,0 +1,103 @@
+import { useState, useEffect } from 'react';
+import { socket } from '../socket';
+import { Button } from '@/components/ui/button';
+import { type Card } from '@/lib/gameUtils';
+import { GameHeader } from '@/components/GameHeader';
+import { PlayerGrid } from '@/components/PlayerGrid';
+import { ActionPanel } from '@/components/ActionPanel';
+import { PlayerHand } from '@/components/PlayerHand';
+
+interface Player {
+    id: string;
+    name: string;
+    team: 'A' | 'B' | null;
+    isOwner: boolean;
+    cardCount?: number;
+}
+
+interface LastAsk {
+    askerName: string;
+    targetName: string;
+    card: Card;
+    success: boolean;
+}
+
+interface GameProps {
+    initialHand: Card[];
+    initialTurnIndex: number;
+    initialPlayers: Player[];
+    myTeam: 'A' | 'B' | null;
+}
+
+export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: GameProps) {
+    const [hand, setHand] = useState<Card[]>(initialHand);
+    const [turnIndex, setTurnIndex] = useState(initialTurnIndex);
+    const [players, setPlayers] = useState<Player[]>(initialPlayers);
+    const [lastAsk, setLastAsk] = useState<LastAsk | null>(null);
+    const [turnState, setTurnState] = useState<'NORMAL' | 'PASSING_TURN'>('NORMAL');
+    const [winner, setWinner] = useState<'A' | 'B' | 'DRAW' | undefined>(undefined);
+    const [scores, setScores] = useState<{ A: number, B: number }>({ A: 0, B: 0 });
+
+    const isMyTurn = players[turnIndex]?.id === socket.id;
+
+    useEffect(() => {
+        socket.on('game_update', (data) => {
+            setHand(data.hand);
+            setTurnIndex(data.turnIndex);
+            setPlayers(data.players);
+            if (data.lastAsk) setLastAsk(data.lastAsk);
+            if (data.turnState) setTurnState(data.turnState);
+            if (data.winner) setWinner(data.winner);
+            if (data.scores) setScores(data.scores);
+        });
+
+        return () => {
+            socket.off('game_update');
+        };
+    }, []);
+
+    if (winner) {
+        return (
+            <div className="flex flex-col h-screen items-center justify-center bg-background text-foreground gap-8">
+                <h1 className="text-6xl font-bold animate-bounce">
+                    {winner === 'DRAW' ? 'It\'s a Draw!' : `Team ${winner} Wins!`}
+                </h1>
+                <div className="text-2xl">
+                    Final Score - Team A: {scores.A} | Team B: {scores.B}
+                </div>
+                <Button
+                    size="lg"
+                    className="px-8 py-4 text-xl font-bold"
+                    onClick={() => window.location.reload()}
+                >
+                    Back to Lobby
+                </Button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-screen bg-background text-foreground">
+            <GameHeader lastAsk={lastAsk} scores={scores} />
+
+            <div className="flex-1 flex overflow-hidden">
+                <PlayerGrid
+                    players={players}
+                    turnIndex={turnIndex}
+                    socketId={socket.id || ''}
+                />
+
+                <ActionPanel
+                    isMyTurn={isMyTurn}
+                    turnIndex={turnIndex}
+                    players={players}
+                    turnState={turnState}
+                    myTeam={myTeam}
+                    socketId={socket.id || ''}
+                />
+            </div>
+
+            <PlayerHand hand={hand} myTeam={myTeam} />
+        </div>
+    );
+}

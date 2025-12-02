@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Lobby } from './components/Lobby';
-import { Game } from './components/Game';
+import { Lobby } from './pages/Lobby';
+import { Game } from './pages/Game';
 import { socket } from './socket';
 import { ThemeProvider } from './components/theme-provider';
 
