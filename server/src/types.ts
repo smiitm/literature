@@ -7,7 +7,8 @@ export interface Card {
 }
 
 export interface Player {
-    id: string;
+    id: string; // socket.id - changes on reconnect
+    playerId: string; // persistent UUID - stays same across reconnects
     name: string;
     hand: Card[];
     team: 'A' | 'B' | null;

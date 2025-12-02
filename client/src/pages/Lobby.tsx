@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
+import { connectSocket, saveSession, disconnectSocket, getPlayerId } from '../lib/socketManager';
 import { ModeToggle } from '@/components/mode-toggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +15,7 @@ import { Label } from '@/components/ui/label';
 
 interface Player {
     id: string;
+    playerId: string;
     name: string;
     isOwner: boolean;
 }
@@ -33,7 +35,11 @@ export function Lobby({ roomId, players }: LobbyProps) {
     // Effect to clear error when room changes
     useEffect(() => {
         setError('');
-    }, [roomId]);
+        // Save session when successfully joined/created room
+        if (roomId && playerName) {
+            saveSession(roomId, playerName);
+        }
+    }, [roomId, playerName]);
 
     useEffect(() => {
         socket.on('error', ({ message }) => {
@@ -45,17 +51,40 @@ export function Lobby({ roomId, players }: LobbyProps) {
         };
     }, []);
 
-    const handleCreateRoom = () => {
+    const handleCreateRoom = async () => {
         if (!playerName) return setError('Name is required');
-        socket.emit('create_game', { playerName });
-        setShowCreateModal(false);
+
+        try {
+            // Connect socket
+            await connectSocket();
+
+            const playerId = getPlayerId();
+            socket.emit('create_game', { playerName, playerId });
+            setShowCreateModal(false);
+        } catch (err) {
+            setError('Failed to connect to server');
+        }
     };
 
-    const handleJoinRoom = () => {
+    const handleJoinRoom = async () => {
         if (!playerName) return setError('Name is required');
         if (!roomCode) return setError('Room Code is required');
-        socket.emit('join_game', { roomCode, playerName });
-        setShowJoinModal(false);
+
+        try {
+            // Connect socket
+            await connectSocket();
+
+            const playerId = getPlayerId();
+            socket.emit('join_game', { roomCode, playerName, playerId });
+            setShowJoinModal(false);
+        } catch (err) {
+            setError('Failed to connect to server');
+        }
+    };
+
+    const handleLeaveRoom = () => {
+        disconnectSocket();
+        window.location.reload();
     };
 
     if (roomId) {
@@ -70,13 +99,13 @@ export function Lobby({ roomId, players }: LobbyProps) {
                     <ul className="space-y-2">
                         {players.map((p) => (
                             <li key={p.id} className="flex justify-between items-center p-2 bg-muted rounded">
-                                <span>{p.name} {p.id === socket.id && '(You)'}</span>
+                                <span>{p.name} {p.playerId === getPlayerId() && '(You)'}</span>
                                 {p.isOwner && <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded">Owner</span>}
                             </li>
                         ))}
                     </ul>
                     <div className="mt-6 text-center text-sm text-muted-foreground">
-                        {players.find(p => p.id === socket.id)?.isOwner ? (
+                        {players.find(p => p.playerId === getPlayerId())?.isOwner ? (
                             <Button
                                 onClick={() => socket.emit('start_game')}
                             >
@@ -85,6 +114,14 @@ export function Lobby({ roomId, players }: LobbyProps) {
                         ) : (
                             'Waiting for owner to start game...'
                         )}
+                    </div>
+                    <div className="mt-4 text-center">
+                        <Button
+                            variant="outline"
+                            onClick={handleLeaveRoom}
+                        >
+                            Leave Room
+                        </Button>
                     </div>
                 </div>
             </div>

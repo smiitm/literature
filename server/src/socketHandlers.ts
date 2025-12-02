@@ -8,10 +8,11 @@ export const setupSocketHandlers = (io: Server) => {
     io.on('connection', (socket: Socket) => {
         console.log(`User connected: ${socket.id}`);
 
-        socket.on('create_game', ({ playerName }: { playerName: string }) => {
+        socket.on('create_game', ({ playerName, playerId }: { playerName: string; playerId: string }) => {
             const roomId = generateRoomId();
             const newPlayer: Player = {
                 id: socket.id,
+                playerId: playerId,
                 name: playerName,
                 hand: [],
                 team: null,
@@ -22,7 +23,7 @@ export const setupSocketHandlers = (io: Server) => {
                 roomId,
                 status: 'LOBBY',
                 players: [newPlayer],
-                settings: { maxPlayers: 6 }, // Default
+                settings: { maxPlayers: 10 }, // Default
                 gameData: {
                     deck: [],
                     turnIndex: 0,
@@ -44,13 +45,40 @@ export const setupSocketHandlers = (io: Server) => {
             console.log(`Game created: ${roomId} by ${playerName}`);
         });
 
-        socket.on('join_game', ({ roomCode, playerName }: { roomCode: string, playerName: string }) => {
+        socket.on('join_game', ({ roomCode, playerName, playerId }: { roomCode: string; playerName: string; playerId: string }) => {
             const game = rooms.get(roomCode);
             if (!game) {
                 socket.emit('error', { message: 'Room not found' });
                 return;
             }
 
+            // Check if player with same playerId already exists (reconnection)
+            const existingPlayer = game.players.find(p => p.playerId === playerId);
+
+            if (existingPlayer) {
+                // Player is reconnecting - update their socket.id
+                existingPlayer.id = socket.id;
+                socket.join(roomCode);
+
+                // If game is in progress, send game state
+                if (game.status === 'IN_GAME') {
+                    io.to(socket.id).emit('game_started_personal', {
+                        hand: existingPlayer.hand,
+                        turnIndex: game.gameData.turnIndex,
+                        players: game.players.map(p => ({ ...p, hand: [] })),
+                        myTeam: existingPlayer.team
+                    });
+                    console.log(`${playerName} rejoined in-progress game ${roomCode}`);
+                } else {
+                    // Game is in lobby
+                    io.to(roomCode).emit('player_update', game.players);
+                    socket.emit('joined_game', { roomId: roomCode });
+                    console.log(`${playerName} reconnected to ${roomCode}`);
+                }
+                return;
+            }
+
+            // New player trying to join - only allow if game is in lobby
             if (game.status !== 'LOBBY') {
                 socket.emit('error', { message: 'Game already started' });
                 return;
@@ -63,6 +91,7 @@ export const setupSocketHandlers = (io: Server) => {
 
             const newPlayer: Player = {
                 id: socket.id,
+                playerId: playerId,
                 name: playerName,
                 hand: [],
                 team: null,
@@ -138,11 +167,10 @@ export const setupSocketHandlers = (io: Server) => {
             // 5. Emit Game Started
             io.to(game!.roomId).emit('game_started', {
                 turnIndex: game!.gameData.turnIndex,
-                players: game!.players // Note: In a real app, we might sanitize this to not show opponents' hands, but for now we send it all as per idea.md notes (wait, idea.md says NEVER send full state).
-                // idea.md says: "Only send a player *their specific hand*."
+                players: game!.players
             });
 
-            // Let's follow the security rule: Send specific data to each client
+            // Send specific data to each client
             game!.players.forEach(player => {
                 io.to(player.id).emit('game_started_personal', {
                     hand: player.hand,
@@ -393,21 +421,43 @@ export const setupSocketHandlers = (io: Server) => {
             emitGameState(game, io);
         });
 
-        socket.on('disconnect', () => {
-            console.log(`User disconnected: ${socket.id}`);
-            // Handle player removal if in lobby
+        socket.on('leave_room', () => {
             rooms.forEach((game, roomId) => {
                 const playerIndex = game.players.findIndex(p => p.id === socket.id);
                 if (playerIndex !== -1) {
-                    if (game.status === 'LOBBY') {
-                        game.players.splice(playerIndex, 1);
-                        if (game.players.length === 0) {
-                            rooms.delete(roomId);
-                        } else {
-                            io.to(roomId).emit('player_update', game.players);
-                        }
+                    const player = game.players[playerIndex];
+                    game.players.splice(playerIndex, 1);
+
+                    // If room is empty, delete it
+                    if (game.players.length === 0) {
+                        rooms.delete(roomId);
+                        console.log(`Room ${roomId} deleted (no players left)`);
                     } else {
-                        // Handle disconnect during game (reconnection logic needed later)
+                        // If leaving player was owner, assign new owner
+                        if (player.isOwner && game.players.length > 0) {
+                            game.players[0].isOwner = true;
+                        }
+                        io.to(roomId).emit('player_update', game.players);
+                    }
+
+                    console.log(`${player.name} left room ${roomId}`);
+                    socket.leave(roomId);
+                }
+            });
+        });
+
+        socket.on('disconnect', () => {
+            console.log(`User disconnected: ${socket.id}`);
+            // Don't remove players on disconnect - they might reconnect
+            // Players will reconnect with their playerId and update their socket.id
+            rooms.forEach((game) => {
+                const playerIndex = game.players.findIndex(p => p.id === socket.id);
+                if (playerIndex !== -1) {
+                    if (game.status === 'LOBBY') {
+                        // In lobby, just log the disconnect but keep the player
+                        console.log(`Player ${game.players[playerIndex].name} disconnected from lobby, waiting for reconnection`);
+                    } else {
+                        // During game, also keep player for reconnection
                         console.log(`Player ${game.players[playerIndex].name} disconnected during game`);
                     }
                 }
