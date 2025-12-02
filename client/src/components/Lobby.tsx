@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
 import { ModeToggle } from './mode-toggle';
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Player {
     id: string;
@@ -17,6 +27,8 @@ export function Lobby({ roomId, players }: LobbyProps) {
     const [playerName, setPlayerName] = useState('');
     const [roomCode, setRoomCode] = useState('');
     const [error, setError] = useState('');
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showJoinModal, setShowJoinModal] = useState(false);
 
     // Effect to clear error when room changes
     useEffect(() => {
@@ -33,15 +45,17 @@ export function Lobby({ roomId, players }: LobbyProps) {
         };
     }, []);
 
-    const createGame = () => {
+    const handleCreateRoom = () => {
         if (!playerName) return setError('Name is required');
         socket.emit('create_game', { playerName });
+        setShowCreateModal(false);
     };
 
-    const joinGame = () => {
+    const handleJoinRoom = () => {
         if (!playerName) return setError('Name is required');
         if (!roomCode) return setError('Room Code is required');
         socket.emit('join_game', { roomCode, playerName });
+        setShowJoinModal(false);
     };
 
     if (roomId) {
@@ -63,12 +77,11 @@ export function Lobby({ roomId, players }: LobbyProps) {
                     </ul>
                     <div className="mt-6 text-center text-sm text-muted-foreground">
                         {players.find(p => p.id === socket.id)?.isOwner ? (
-                            <button
+                            <Button
                                 onClick={() => socket.emit('start_game')}
-                                className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded font-medium"
                             >
                                 Start Game
-                            </button>
+                            </Button>
                         ) : (
                             'Waiting for owner to start game...'
                         )}
@@ -83,57 +96,119 @@ export function Lobby({ roomId, players }: LobbyProps) {
             <div className="absolute top-4 right-4">
                 <ModeToggle />
             </div>
-            <h1 className="text-5xl font-bold mb-12">Literature</h1>
 
-            <div className="w-full max-w-md p-8 bg-card rounded-xl shadow-xl border space-y-6">
-                {error && (
-                    <div className="p-3 bg-destructive/10 text-destructive rounded text-sm">
-                        {error}
-                    </div>
-                )}
+            {/* Very large title */}
+            <h1 className="text-9xl font-bold tracking-tight">Literature</h1>
 
-                <div className="space-y-2">
-                    <label className="text-sm font-medium">Your Name</label>
-                    <input
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        placeholder="Enter your name"
-                        value={playerName}
-                        onChange={(e) => setPlayerName(e.target.value)}
-                    />
+            {/* Subtitle */}
+            <p className="text-3xl mb-16 text-muted-foreground">probability to 50/50 hi hai</p>
+
+            {/* Error display */}
+            {error && (
+                <div className="mb-6 p-4 bg-destructive/10 text-destructive rounded-lg text-sm max-w-md w-full text-center">
+                    {error}
                 </div>
+            )}
 
-                <div className="grid grid-cols-1 gap-4">
-                    <button
-                        onClick={createGame}
-                        className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 w-full"
-                    >
-                        Create Game
-                    </button>
-
-                    <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t" />
-                        </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-card px-2 text-muted-foreground">Or join existing</span>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                        <input
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            placeholder="Room Code"
-                            value={roomCode}
-                            onChange={(e) => setRoomCode(e.target.value)}
-                        />
-                        <button
-                            onClick={joinGame}
-                            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2"
+            {/* Two buttons side by side */}
+            <div className="flex gap-6">
+                <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+                    <DialogTrigger asChild>
+                        <Button
+                            size="lg"
+                            className="text-lg font-semibold h-14 px-8 shadow-lg hover:scale-105 transition-transform"
                         >
-                            Join
-                        </button>
-                    </div>
-                </div>
+                            Create Room
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create Room</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="create-name">Your Name</Label>
+                                <Input
+                                    id="create-name"
+                                    placeholder="Enter your name"
+                                    value={playerName}
+                                    onChange={(e) => setPlayerName(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleCreateRoom()}
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowCreateModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleCreateRoom}
+                                    className="flex-1"
+                                >
+                                    Create
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={showJoinModal} onOpenChange={setShowJoinModal}>
+                    <DialogTrigger asChild>
+                        <Button
+                            variant="secondary"
+                            size="lg"
+                            className="text-lg font-semibold h-14 px-8 shadow-lg hover:scale-105 transition-transform"
+                        >
+                            Join Room
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Join Room</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="join-name">Your Name</Label>
+                                <Input
+                                    id="join-name"
+                                    placeholder="Enter your name"
+                                    value={playerName}
+                                    onChange={(e) => setPlayerName(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="room-code">Room Code</Label>
+                                <Input
+                                    id="room-code"
+                                    placeholder="Enter room code"
+                                    value={roomCode}
+                                    onChange={(e) => setRoomCode(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowJoinModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleJoinRoom}
+                                    className="flex-1"
+                                >
+                                    Join
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );

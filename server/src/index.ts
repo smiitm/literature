@@ -35,8 +35,8 @@ const getSetCards = (setName: string): Card[] => {
             { suit: 'Hearts', rank: '7' },
             { suit: 'Clubs', rank: '7' },
             { suit: 'Diamonds', rank: '7' },
-            { suit: 'Joker', rank: 'Big' },
-            { suit: 'Joker', rank: 'Small' }
+            { suit: 'Joker', rank: 'Red' },
+            { suit: 'Joker', rank: 'Black' }
         ];
     }
     const [range, suit] = setName.split(' ');
@@ -156,8 +156,8 @@ io.on('connection', (socket: Socket) => {
         });
 
         // Add Jokers
-        deck.push({ suit: 'Joker', rank: 'Big' });
-        deck.push({ suit: 'Joker', rank: 'Small' });
+        deck.push({ suit: 'Joker', rank: 'Red' });
+        deck.push({ suit: 'Joker', rank: 'Black' });
 
         // Shuffle
         for (let i = deck.length - 1; i > 0; i--) {

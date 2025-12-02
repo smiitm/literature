@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
 import { ModeToggle } from './mode-toggle';
+import { Button } from '@/components/ui/button';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 interface Card {
     suit: 'Spades' | 'Hearts' | 'Clubs' | 'Diamonds' | 'Joker';
@@ -81,8 +89,8 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                 { suit: 'Hearts', rank: '7' },
                 { suit: 'Clubs', rank: '7' },
                 { suit: 'Diamonds', rank: '7' },
-                { suit: 'Joker', rank: 'Big' },
-                { suit: 'Joker', rank: 'Small' }
+                { suit: 'Joker', rank: 'Red' },
+                { suit: 'Joker', rank: 'Black' }
             ];
         }
         if (!setName) return [];
@@ -128,6 +136,26 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
         setPassTarget('');
     };
 
+    const getCardImage = (suit: string, rank: string) => {
+        const suitLower = suit.toLowerCase();
+        let rankLower = rank.toLowerCase();
+
+        // Handle Jokers
+        if (suit === 'Joker') {
+            return rank === 'Red'
+                ? new URL('../assets/cards/joker_red.svg', import.meta.url).href
+                : new URL('../assets/cards/joker_black.svg', import.meta.url).href;
+        }
+
+        // Convert A to a for aces
+        if (rank === 'A') rankLower = 'a';
+        if (rank === 'J') rankLower = 'j';
+        if (rank === 'Q') rankLower = 'q';
+        if (rank === 'K') rankLower = 'k';
+
+        return new URL(`../assets/cards/${suitLower}_${rankLower}.svg`, import.meta.url).href;
+    };
+
     const getSuitIcon = (suit: string) => {
         switch (suit) {
             case 'Spades': return '♠️';
@@ -145,7 +173,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
 
     const opponents = players.filter(p => p.id !== socket.id && p.team !== myTeam && (p.cardCount ?? 0) > 0);
     const suits = ['Spades', 'Hearts', 'Clubs', 'Diamonds', 'Joker'];
-    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'Big', 'Small'];
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'Red', 'Black'];
 
     const getTeamColor = (team: 'A' | 'B' | null) => {
         if (team === 'A') return '#3b82f6';
@@ -162,12 +190,13 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                 <div className="text-2xl">
                     Final Score - Team A: {scores.A} | Team B: {scores.B}
                 </div>
-                <button
-                    className="bg-primary text-primary-foreground px-8 py-4 rounded-lg text-xl font-bold hover:bg-primary/90"
+                <Button
+                    size="lg"
+                    className="px-8 py-4 text-xl font-bold"
                     onClick={() => window.location.reload()}
                 >
                     Back to Lobby
-                </button>
+                </Button>
             </div>
         );
     }
@@ -194,10 +223,10 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
 
                 {/* Scores & Toggle */}
                 <div className="flex items-center gap-2">
-                    <div className="px-4 py-2 rounded font-bold text-white" style={{ backgroundColor: getTeamColor('A') }}>
+                    <div className="px-2 py-1 rounded font-bold text-white" style={{ backgroundColor: getTeamColor('A') }}>
                         {scores.A}
                     </div>
-                    <div className="px-4 py-2 rounded font-bold text-white" style={{ backgroundColor: getTeamColor('B') }}>
+                    <div className="px-2 py-1 rounded font-bold text-white" style={{ backgroundColor: getTeamColor('B') }}>
                         {scores.B}
                     </div>
                     <ModeToggle />
@@ -237,23 +266,23 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                     {isMyTurn && turnState === 'PASSING_TURN' ? (
                         <div className="space-y-4">
                             <p className="text-sm text-muted-foreground">You have no cards. Pass your turn to a teammate.</p>
-                            <select
-                                className="w-full p-2 border rounded bg-background"
-                                value={passTarget}
-                                onChange={(e) => setPassTarget(e.target.value)}
-                            >
-                                <option value="">Select Teammate...</option>
-                                {players.filter(p => p.team === myTeam && p.id !== socket.id).map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
-                            <button
-                                className="w-full bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                            <Select value={passTarget} onValueChange={setPassTarget}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select Teammate..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {players.filter(p => p.team === myTeam && p.id !== socket.id).map(p => (
+                                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button
+                                className="w-full"
                                 onClick={handlePassTurn}
                                 disabled={!passTarget}
                             >
                                 Pass Turn
-                            </button>
+                            </Button>
                         </div>
                     ) : isMyTurn ? (
                         <div className="space-y-6">
@@ -263,78 +292,79 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
 
                                 <div>
                                     <label className="text-xs text-muted-foreground">Opponent</label>
-                                    <select
-                                        className="w-full p-2 border rounded bg-background text-sm"
-                                        value={selectedOpponent}
-                                        onChange={(e) => setSelectedOpponent(e.target.value)}
-                                    >
-                                        <option value="">Select...</option>
-                                        {opponents.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
+                                    <Select value={selectedOpponent} onValueChange={setSelectedOpponent}>
+                                        <SelectTrigger className="text-sm">
+                                            <SelectValue placeholder="Select..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {opponents.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
                                         <label className="text-xs text-muted-foreground">Rank</label>
-                                        <select
-                                            className="w-full p-2 border rounded bg-background text-sm"
-                                            value={askRank}
-                                            onChange={(e) => setAskRank(e.target.value)}
-                                        >
-                                            <option value="">Select...</option>
-                                            {ranks.map(r => <option key={r} value={r}>{r}</option>)}
-                                        </select>
+                                        <Select value={askRank} onValueChange={setAskRank}>
+                                            <SelectTrigger className="text-sm">
+                                                <SelectValue placeholder="Select..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {ranks.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                     <div>
                                         <label className="text-xs text-muted-foreground">Suit</label>
-                                        <select
-                                            className="w-full p-2 border rounded bg-background text-sm"
-                                            value={askSuit}
-                                            onChange={(e) => setAskSuit(e.target.value)}
-                                        >
-                                            <option value="">Select...</option>
-                                            {suits.map(s => <option key={s} value={s}>{getSuitIcon(s)} {s}</option>)}
-                                        </select>
+                                        <Select value={askSuit} onValueChange={setAskSuit}>
+                                            <SelectTrigger className="text-sm">
+                                                <SelectValue placeholder="Select..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {suits.map(s => <SelectItem key={s} value={s}>{getSuitIcon(s)} {s}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
 
-                                <button
-                                    className="w-full bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 disabled:opacity-50 text-sm"
+                                <Button
+                                    className="w-full text-sm"
                                     onClick={handleAsk}
                                     disabled={!selectedOpponent || !askRank || !askSuit}
                                 >
                                     Ask Card
-                                </button>
+                                </Button>
                             </div>
 
                             <div className="border-t pt-4">
-                                <button
-                                    className="w-full bg-destructive text-destructive-foreground px-4 py-2 rounded hover:bg-destructive/90 text-sm"
+                                <Button
+                                    variant="destructive"
+                                    className="w-full text-sm"
                                     onClick={() => setIsDeclaring(!isDeclaring)}
                                 >
                                     {isDeclaring ? 'Cancel' : 'Declare Set'}
-                                </button>
+                                </Button>
                             </div>
 
                             {/* Declaration Form */}
                             {isDeclaring && (
                                 <div className="space-y-3 border-t pt-4">
-                                    <select
-                                        className="w-full p-2 border rounded bg-background text-sm"
-                                        value={declareSet}
-                                        onChange={(e) => setDeclareSet(e.target.value)}
-                                    >
-                                        <option value="">Select Set...</option>
-                                        <option value="Low Spades">Low Spades (A-6)</option>
-                                        <option value="High Spades">High Spades (8-K)</option>
-                                        <option value="Low Hearts">Low Hearts (A-6)</option>
-                                        <option value="High Hearts">High Hearts (8-K)</option>
-                                        <option value="Low Clubs">Low Clubs (A-6)</option>
-                                        <option value="High Clubs">High Clubs (8-K)</option>
-                                        <option value="Low Diamonds">Low Diamonds (A-6)</option>
-                                        <option value="High Diamonds">High Diamonds (8-K)</option>
-                                        <option value="Sevens">Sevens (7s + Jokers)</option>
-                                    </select>
+                                    <Select value={declareSet} onValueChange={setDeclareSet}>
+                                        <SelectTrigger className="text-sm">
+                                            <SelectValue placeholder="Select Set..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Low Spades">Low Spades (A-6)</SelectItem>
+                                            <SelectItem value="High Spades">High Spades (8-K)</SelectItem>
+                                            <SelectItem value="Low Hearts">Low Hearts (A-6)</SelectItem>
+                                            <SelectItem value="High Hearts">High Hearts (8-K)</SelectItem>
+                                            <SelectItem value="Low Clubs">Low Clubs (A-6)</SelectItem>
+                                            <SelectItem value="High Clubs">High Clubs (8-K)</SelectItem>
+                                            <SelectItem value="Low Diamonds">Low Diamonds (A-6)</SelectItem>
+                                            <SelectItem value="High Diamonds">High Diamonds (8-K)</SelectItem>
+                                            <SelectItem value="Sevens">Sevens (7s + Jokers)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
 
                                     {declareSet && (
                                         <>
@@ -344,29 +374,32 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                                                         <span className={getSuitColor(card.suit)}>
                                                             {card.rank} {getSuitIcon(card.suit)}
                                                         </span>
-                                                        <select
-                                                            className="p-1 border rounded bg-background text-xs w-32"
+                                                        <Select
                                                             value={declarationMap[`${card.rank}-${card.suit}`] || ''}
-                                                            onChange={(e) => setDeclarationMap(prev => ({
+                                                            onValueChange={(value: string) => setDeclarationMap(prev => ({
                                                                 ...prev,
-                                                                [`${card.rank}-${card.suit}`]: e.target.value
+                                                                [`${card.rank}-${card.suit}`]: value
                                                             }))}
                                                         >
-                                                            <option value="">Holder...</option>
-                                                            {players.filter(p => p.team === myTeam).map(p => (
-                                                                <option key={p.id} value={p.id}>{p.name} {p.id === socket.id ? '(You)' : ''}</option>
-                                                            ))}
-                                                        </select>
+                                                            <SelectTrigger className="text-xs w-32 h-8">
+                                                                <SelectValue placeholder="Holder..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {players.filter(p => p.team === myTeam).map(p => (
+                                                                    <SelectItem key={p.id} value={p.id}>{p.name} {p.id === socket.id ? '(You)' : ''}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
                                                 ))}
                                             </div>
-                                            <button
-                                                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 text-sm"
+                                            <Button
+                                                className="w-full bg-green-600 hover:bg-green-700 text-sm"
                                                 onClick={handleDeclare}
                                                 disabled={!declareSet || getSetCards(declareSet).some(c => !declarationMap[`${c.rank}-${c.suit}`])}
                                             >
                                                 Submit Declaration
-                                            </button>
+                                            </Button>
                                         </>
                                     )}
                                 </div>
@@ -388,13 +421,13 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                     {sortedHand.map((card, idx) => (
                         <div
                             key={`${card.suit}-${card.rank}-${idx}`}
-                            className={`
-                                w-20 h-28 rounded-lg border-2 flex flex-col items-center justify-center bg-background shadow-sm hover:-translate-y-1 transition-transform cursor-pointer
-                                ${getSuitColor(card.suit)}
-                            `}
+                            className="relative w-24 h-36 shadow-lg hover:-translate-y-2 hover:shadow-2xl transition-all cursor-pointer"
                         >
-                            <div className="text-xl font-bold">{card.rank}</div>
-                            <div className="text-3xl">{getSuitIcon(card.suit)}</div>
+                            <img
+                                src={getCardImage(card.suit, card.rank)}
+                                alt={`${card.rank} of ${card.suit}`}
+                                className="w-full h-full object-contain"
+                            />
                         </div>
                     ))}
                 </div>
