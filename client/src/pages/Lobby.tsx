@@ -40,6 +40,11 @@ export function Lobby({ roomId, players }: LobbyProps) {
             saveSession(roomId, playerName);
         }
     }, [roomId, playerName]);
+        // Save session when successfully joined/created room
+        if (roomId && playerName) {
+            saveSession(roomId, playerName);
+        }
+    }, [roomId, playerName]);
 
     useEffect(() => {
         socket.on('error', ({ message }) => {
@@ -51,6 +56,7 @@ export function Lobby({ roomId, players }: LobbyProps) {
         };
     }, []);
 
+    const handleCreateRoom = async () => {
     const handleCreateRoom = async () => {
         if (!playerName) return setError('Name is required');
 
@@ -66,6 +72,7 @@ export function Lobby({ roomId, players }: LobbyProps) {
         }
     };
 
+    const handleJoinRoom = async () => {
     const handleJoinRoom = async () => {
         if (!playerName) return setError('Name is required');
         if (!roomCode) return setError('Room Code is required');
@@ -114,6 +121,14 @@ export function Lobby({ roomId, players }: LobbyProps) {
                         ) : (
                             'Waiting for owner to start game...'
                         )}
+                    </div>
+                    <div className="mt-4 text-center">
+                        <Button
+                            variant="outline"
+                            onClick={handleLeaveRoom}
+                        >
+                            Leave Room
+                        </Button>
                     </div>
                     <div className="mt-4 text-center">
                         <Button

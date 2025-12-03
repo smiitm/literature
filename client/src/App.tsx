@@ -111,6 +111,17 @@ function App() {
     );
   }
 
+  // Show loading during reconnection
+  if (isReconnecting) {
+    return (
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+          <div className="text-2xl font-semibold">Reconnecting...</div>
+        </div>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       {gameState === 'LOBBY' ? (
