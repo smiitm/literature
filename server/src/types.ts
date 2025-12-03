@@ -17,29 +17,11 @@ export interface Player {
 
 export interface TeamState {
     score: number;
-    declaredSets: string[];
 }
 
-export interface GameState {
-    roomId: string;
-    status: 'LOBBY' | 'IN_GAME' | 'GAME_OVER';
-    players: Player[];
-    settings: {
-        maxPlayers: number;
-    };
-    gameData: {
-        deck: Card[];
-        turnIndex: number;
-        teams: {
-            A: TeamState;
-            B: TeamState;
-        };
-        log: string[];
-        lastAsk?: LastAsk;
-        discardedSets: string[];
-        turnState: 'NORMAL' | 'PASSING_TURN';
-        winner?: 'A' | 'B' | 'DRAW';
-    };
+export interface CompletedSet {
+    setName: string;
+    completedBy: 'A' | 'B' | 'Discarded';
 }
 
 export interface LastAsk {
@@ -48,3 +30,22 @@ export interface LastAsk {
     card: Card;
     success: boolean;
 }
+
+export interface GameState {
+    roomId: string;
+    status: 'LOBBY' | 'IN_GAME' | 'GAME_OVER';
+    players: Player[];
+    gameData: {
+        turnIndex: number;
+        log: string[];
+        teams: {
+            A: TeamState;
+            B: TeamState;
+        };
+        lastAsk?: LastAsk;
+        completedSets: CompletedSet[];
+        turnState: 'NORMAL' | 'PASSING_TURN'; // if the current player has to pass their turn.
+        winner?: 'A' | 'B' | 'DRAW';
+    };
+}
+

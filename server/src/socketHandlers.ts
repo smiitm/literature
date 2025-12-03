@@ -1,13 +1,15 @@
 import { Server, Socket } from 'socket.io';
-import { GameState, Player, Card, Suit, Rank } from './types';
-import { generateRoomId, getSetName, getSetCards } from './utils';
+import { GameState, Player, Card } from './types';
+import { generateRoomId, getSetName, getSetCards, generateDeck, shuffleArray, assignTeams, distributeCards } from './utils';
 
+// A map storing all active game rooms by roomId
 const rooms = new Map<string, GameState>();
 
 export const setupSocketHandlers = (io: Server) => {
     io.on('connection', (socket: Socket) => {
         console.log(`User connected: ${socket.id}`);
 
+        // Creates a new room, makes the creator the owner
         socket.on('create_game', ({ playerName, playerId }: { playerName: string; playerId: string }) => {
             const roomId = generateRoomId();
             const newPlayer: Player = {
@@ -20,31 +22,31 @@ export const setupSocketHandlers = (io: Server) => {
             };
 
             const newGame: GameState = {
-                roomId,
+                roomId: roomId,
                 status: 'LOBBY',
                 players: [newPlayer],
-                settings: { maxPlayers: 10 }, // Default
                 gameData: {
-                    deck: [],
                     turnIndex: 0,
                     teams: {
-                        A: { score: 0, declaredSets: [] },
-                        B: { score: 0, declaredSets: [] }
+                        A: { score: 0 },
+                        B: { score: 0 }
                     },
                     log: [],
-                    discardedSets: [],
+                    completedSets: [],
                     turnState: 'NORMAL'
                 }
             };
 
-            rooms.set(roomId, newGame);
-            socket.join(roomId);
+            rooms.set(roomId, newGame); // Store game data in map
+            socket.join(roomId);        // Join the Socket.IO room
 
             socket.emit('game_created', { roomId });
             io.to(roomId).emit('player_update', newGame.players);
             console.log(`Game created: ${roomId} by ${playerName}`);
         });
 
+
+        // Joins existing room, or reconnects if player already exists (by playerId)
         socket.on('join_game', ({ roomCode, playerName, playerId }: { roomCode: string; playerName: string; playerId: string }) => {
             const game = rooms.get(roomCode);
             if (!game) {
@@ -56,7 +58,7 @@ export const setupSocketHandlers = (io: Server) => {
             const existingPlayer = game.players.find(p => p.playerId === playerId);
 
             if (existingPlayer) {
-                // Player is reconnecting - update their socket.id
+                // Player is reconnecting, update their socket.id
                 existingPlayer.id = socket.id;
                 socket.join(roomCode);
 
@@ -65,7 +67,14 @@ export const setupSocketHandlers = (io: Server) => {
                     io.to(socket.id).emit('game_started_personal', {
                         hand: existingPlayer.hand,
                         turnIndex: game.gameData.turnIndex,
-                        players: game.players.map(p => ({ ...p, hand: [] })),
+                        players: game.players.map(p => ({
+                            id: p.id,
+                            playerId: p.playerId,
+                            name: p.name,
+                            team: p.team,
+                            isOwner: p.isOwner,
+                            cardCount: p.hand.length
+                        })),
                         myTeam: existingPlayer.team
                     });
                     console.log(`${playerName} rejoined in-progress game ${roomCode}`);
@@ -78,14 +87,9 @@ export const setupSocketHandlers = (io: Server) => {
                 return;
             }
 
-            // New player trying to join - only allow if game is in lobby
+            // New player trying to join, only allow if game is in lobby
             if (game.status !== 'LOBBY') {
                 socket.emit('error', { message: 'Game already started' });
-                return;
-            }
-
-            if (game.players.length >= game.settings.maxPlayers) {
-                socket.emit('error', { message: 'Room is full' });
                 return;
             }
 
@@ -106,156 +110,135 @@ export const setupSocketHandlers = (io: Server) => {
             console.log(`${playerName} joined ${roomCode}`);
         });
 
-        socket.on('start_game', () => {
-            // Find the game where this socket is the owner
-            let game: GameState | undefined;
-            rooms.forEach(g => {
-                if (g.players.find(p => p.id === socket.id && p.isOwner)) {
-                    game = g;
-                }
-            });
 
+        // Starts the game, only room owner can start
+        socket.on('start_game', ({ roomId }: { roomId: string }) => {
+            const game = rooms.get(roomId);
             if (!game) {
-                socket.emit('error', { message: 'You are not the owner of any game' });
+                socket.emit('error', { message: 'Room not found' });
                 return;
             }
 
-            if (game.players.length < 4) { // Minimum 4 players for Literature
-                // For testing purposes, we might allow fewer, but let's stick to rules for now or warn
+            // Verify the socket is the owner
+            const player = game.players.find(p => p.id === socket.id);
+            if (!player || !player.isOwner) {
+                socket.emit('error', { message: 'You are not the owner of this game' });
+                return;
+            }
+
+            if (game.players.length < 4) {
+                // Minimum 4 players for Literature
+                // For testing purposes during development, allow fewer
                 // socket.emit('error', { message: 'Need at least 4 players' });
                 // return;
             }
 
-            // 1. Assign Teams (Alternating)
-            game.players.forEach((player, index) => {
-                player.team = index % 2 === 0 ? 'A' : 'B';
-            });
+            // Setup game
+            assignTeams(game.players);
+            const deck = shuffleArray(generateDeck());
+            distributeCards(deck, game.players);
 
-            // 2. Generate and Shuffle Deck (54 cards)
-            const suits: Suit[] = ['Spades', 'Hearts', 'Clubs', 'Diamonds'];
-            const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-            let deck: Card[] = [];
-
-            suits.forEach(suit => {
-                ranks.forEach(rank => {
-                    deck.push({ suit, rank });
-                });
-            });
-
-            // Add Jokers
-            deck.push({ suit: 'Joker', rank: 'Red' });
-            deck.push({ suit: 'Joker', rank: 'Black' });
-
-            // Shuffle
-            for (let i = deck.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [deck[i], deck[j]] = [deck[j], deck[i]];
-            }
-
-            // 3. Distribute Cards
-            const numPlayers = game.players.length;
-            deck.forEach((card, index) => {
-                const playerIndex = index % numPlayers;
-                game!.players[playerIndex].hand.push(card);
-            });
-
-            // 4. Set Game State
+            // Set game state
             game.status = 'IN_GAME';
-            game.gameData.turnIndex = Math.floor(Math.random() * numPlayers);
-            game.gameData.deck = []; // Deck is empty after distribution
+            game.gameData.turnIndex = Math.floor(Math.random() * game.players.length);
 
-            // 5. Emit Game Started
-            io.to(game!.roomId).emit('game_started', {
-                turnIndex: game!.gameData.turnIndex,
-                players: game!.players
+            // Game Started
+            io.to(game.roomId).emit('game_started', {
+                turnIndex: game.gameData.turnIndex,
+                players: game.players
             });
 
             // Send specific data to each client
-            game!.players.forEach(player => {
-                io.to(player.id).emit('game_started_personal', {
-                    hand: player.hand,
-                    turnIndex: game!.gameData.turnIndex,
-                    players: game!.players.map(p => ({ ...p, hand: [] })), // Hide other hands
-                    myTeam: player.team
+            game.players.forEach(p => {
+                io.to(p.id).emit('game_started_personal', {
+                    hand: p.hand,
+                    turnIndex: game.gameData.turnIndex,
+                    players: game.players.map(pl => ({
+                        id: pl.id,
+                        playerId: pl.playerId,
+                        name: pl.name,
+                        team: pl.team,
+                        isOwner: pl.isOwner,
+                        cardCount: pl.hand.length
+                    })),
+                    myTeam: p.team
                 });
             });
 
-            console.log(`Game started in room ${game!.roomId}`);
+            console.log(`Game started in room ${game.roomId}`);
         });
 
-        socket.on('ask_card', ({ targetId, card }: { targetId: string, card: Card }) => {
-            // Find game
-            let game: GameState | undefined;
-            let playerIndex = -1;
-            rooms.forEach(g => {
-                const idx = g.players.findIndex(p => p.id === socket.id);
-                if (idx !== -1) {
-                    game = g;
-                    playerIndex = idx;
-                }
-            });
 
-            if (!game) return;
+        // Ask opponent for a card
+        socket.on('ask_card', ({ roomId, targetId, card }: { roomId: string, targetId: string, card: Card }) => {
+            const game = rooms.get(roomId);
+            if (!game) {
+                socket.emit('error', { message: 'Room not found' });
+                return;
+            }
 
-            const player = game.players[playerIndex];
+            // Find player and validate turn
+            const playerIndex = game.players.findIndex(p => p.id === socket.id);
+            if (playerIndex === -1) {
+                socket.emit('error', { message: 'You are not in this game' });
+                return;
+            }
 
-            // 1. Validate Turn
             if (game.gameData.turnIndex !== playerIndex) {
                 socket.emit('error', { message: "It's not your turn" });
                 return;
             }
 
-            // 2. Validate Target
+            const player = game.players[playerIndex];
+
+            // Validate target
             const targetIndex = game.players.findIndex(p => p.id === targetId);
             if (targetIndex === -1) {
-                socket.emit('error', { message: "Target player not found" });
+                socket.emit('error', { message: 'Target player not found' });
                 return;
             }
+
             const target = game.players[targetIndex];
 
             if (player.team === target.team) {
-                socket.emit('error', { message: "Cannot ask teammate" });
+                socket.emit('error', { message: 'Cannot ask teammate' });
                 return;
             }
 
             if (target.hand.length === 0) {
-                socket.emit('error', { message: "Target has no cards" });
+                socket.emit('error', { message: 'Target has no cards' });
                 return;
             }
 
-            // 3. Validate Player has Base (at least one card of the SET)
+            // Validate player has a card from the same set
             const requestedSet = getSetName(card);
-            const hasBase = player.hand.some(c => getSetName(c) === requestedSet);
-
-            if (!hasBase) {
-                socket.emit('error', { message: `You must have a card of the "${requestedSet}" set to ask` });
+            if (!player.hand.some(c => getSetName(c) === requestedSet)) {
+                socket.emit('error', { message: `You must have a card from the "${requestedSet}" set to ask` });
                 return;
             }
 
-            // 4. Validate Player doesn't have the card
+            // Validate player doesn't already have the card
             if (player.hand.some(c => c.suit === card.suit && c.rank === card.rank)) {
-                socket.emit('error', { message: "You already have this card" });
+                socket.emit('error', { message: 'You already have this card' });
                 return;
             }
 
-            // 5. Check if Target has the card
+            // Check if target has the card
             const cardIndex = target.hand.findIndex(c => c.suit === card.suit && c.rank === card.rank);
             const success = cardIndex !== -1;
 
-            // Update Last Ask
+            // Update game state
             game.gameData.lastAsk = {
                 askerName: player.name,
                 targetName: target.name,
-                card: card,
-                success: success
+                card,
+                success
             };
 
             if (success) {
-                // Transfer Card
+                // Transfer card from target to player
                 const [transferredCard] = target.hand.splice(cardIndex, 1);
                 player.hand.push(transferredCard);
-
-                // Turn remains with asker
                 game.gameData.log.push(`${player.name} took ${card.rank} of ${card.suit} from ${target.name}`);
             } else {
                 // Turn passes to target
@@ -263,157 +246,152 @@ export const setupSocketHandlers = (io: Server) => {
                 game.gameData.log.push(`${player.name} asked ${target.name} for ${card.rank} of ${card.suit} and missed`);
             }
 
-            // Emit Updates
             emitGameState(game, io);
         });
 
-        socket.on('declare_set', ({ declaration }: { declaration: { card: Card, playerId: string }[] }) => {
-            // Find game
-            let game: GameState | undefined;
-            let playerIndex = -1;
-            rooms.forEach(g => {
-                const idx = g.players.findIndex(p => p.id === socket.id);
-                if (idx !== -1) {
-                    game = g;
-                    playerIndex = idx;
-                }
-            });
 
-            if (!game) return;
-
-            const player = game.players[playerIndex];
-
-            // 1. Validate Turn
-            if (game.gameData.turnIndex !== playerIndex) {
-                socket.emit('error', { message: "It's not your turn" });
+        // Declare/claim a set
+        socket.on('declare_set', ({ roomId, declaration }: { roomId: string, declaration: { card: Card, playerId: string }[] }) => {
+            const game = rooms.get(roomId);
+            if (!game) {
+                socket.emit('error', { message: 'Room not found' });
                 return;
             }
 
-            // 2. Validate Set Consistency
-            if (declaration.length === 0) return;
-            const firstCard = declaration[0].card;
-            const setName = getSetName(firstCard);
+            // Find player
+            const player = game.players.find(p => p.id === socket.id);
+            if (!player) {
+                socket.emit('error', { message: 'You are not in this game' });
+                return;
+            }
 
+            // Validate declaration is not empty
+            if (declaration.length === 0) {
+                socket.emit('error', { message: 'Declaration cannot be empty' });
+                return;
+            }
+
+            // Get expected set based on first card
+            const setName = getSetName(declaration[0].card);
             const expectedSet = getSetCards(setName);
+
+            // Validate declaration has correct number of cards
             if (declaration.length !== expectedSet.length) {
-                socket.emit('error', { message: `Invalid declaration: Set ${setName} requires ${expectedSet.length} cards` });
+                socket.emit('error', { message: `Set "${setName}" requires ${expectedSet.length} cards` });
                 return;
             }
 
-            const allPresent = expectedSet.every(ec =>
-                declaration.some(dc => dc.card.suit === ec.suit && dc.card.rank === ec.rank)
+            // Validate all cards in set are declared
+            const allCardsPresent = expectedSet.every(expected =>
+                declaration.some(decl => decl.card.suit === expected.suit && decl.card.rank === expected.rank)
             );
 
-            if (!allPresent) {
-                socket.emit('error', { message: "Invalid declaration: Missing cards from set" });
+            if (!allCardsPresent) {
+                socket.emit('error', { message: 'Declaration is missing cards from the set' });
                 return;
             }
 
-            // 3. Verify Ownership & Scoring
-            let correct = true;
-            for (const decl of declaration) {
-                const targetPlayer = game.players.find(p => p.id === decl.playerId);
-                if (!targetPlayer) {
-                    correct = false;
-                    break;
-                }
-                const hasCard = targetPlayer.hand.some(c => c.suit === decl.card.suit && c.rank === decl.card.rank);
-                if (!hasCard) {
-                    correct = false;
-                    break;
-                }
-            }
+            // Verify each declared card-player mapping is correct
+            const isCorrect = declaration.every(decl => {
+                const targetPlayer = game.players.find(p => p.playerId === decl.playerId);
+                if (!targetPlayer) return false;
+                return targetPlayer.hand.some(c => c.suit === decl.card.suit && c.rank === decl.card.rank);
+            });
 
-            // Check if opponent team held any card (for scoring on failure)
-            let opponentHasCard = false;
-            if (!correct) {
-                for (const card of expectedSet) {
-                    const holder = game.players.find(p => p.hand.some(c => c.suit === card.suit && c.rank === card.rank));
-                    if (holder && holder.team !== player.team) {
-                        opponentHasCard = true;
-                        break;
-                    }
-                }
-            }
+            // Check if opponent held any card (for scoring on wrong declaration)
+            const opponentHeldCard = !isCorrect && expectedSet.some(card => {
+                const holder = game.players.find(p => p.hand.some(c => c.suit === card.suit && c.rank === card.rank));
+                return holder && holder.team !== player.team;
+            });
 
-            // Remove cards from ALL players' hands
+            // Remove all cards of this set from all players
             game.players.forEach(p => {
                 p.hand = p.hand.filter(c => getSetName(c) !== setName);
             });
 
-            // 4. Update Score and Turn
-            if (correct) {
-                if (player.team) {
-                    game.gameData.teams[player.team].score += 1;
-                    game.gameData.teams[player.team].declaredSets.push(setName);
-                }
-                game.gameData.log.push(`${player.name} declared ${setName} correctly`);
-
-                // Turn Logic: Correct -> Keep turn (unless empty hand)
-                if (player.hand.length === 0) {
-                    game.gameData.turnState = 'PASSING_TURN';
-                }
+            // Update score and completed sets
+            if (isCorrect) {
+                game.gameData.teams[player.team!].score += 1;
+                game.gameData.completedSets.push({ setName, completedBy: player.team! });
+                game.gameData.log.push(`${player.name} declared ${setName} correctly!`);
             } else {
-                if (opponentHasCard) {
-                    const opponentTeam = player.team === 'A' ? 'B' : 'A';
+                const opponentTeam = player.team === 'A' ? 'B' : 'A';
+
+                if (opponentHeldCard) {
                     game.gameData.teams[opponentTeam].score += 1;
-                    game.gameData.teams[opponentTeam].declaredSets.push(setName);
+                    game.gameData.completedSets.push({ setName, completedBy: opponentTeam });
                     game.gameData.log.push(`${player.name} declared ${setName} incorrectly. Opponent gets point.`);
                 } else {
-                    game.gameData.discardedSets.push(setName);
+                    game.gameData.completedSets.push({ setName, completedBy: 'Discarded' });
                     game.gameData.log.push(`${player.name} declared ${setName} incorrectly. No point awarded.`);
                 }
 
-                // Turn Logic: Incorrect -> Pass turn to next player
-                game.gameData.turnIndex = (game.gameData.turnIndex + 1) % game.players.length;
             }
 
-            // 5. Check Game Over
-            const totalSets = 9;
-            const declared = game.gameData.teams.A.declaredSets.length + game.gameData.teams.B.declaredSets.length + game.gameData.discardedSets.length;
-            if (declared === totalSets) {
+            // If current turn holder lost all cards due to this declaration, they must pass
+            const currentPlayer = game.players[game.gameData.turnIndex];
+            if (currentPlayer && currentPlayer.hand.length === 0) {
+                game.gameData.turnState = 'PASSING_TURN';
+            }
+
+            // Check for game over (all 9 sets completed)
+            if (game.gameData.completedSets.length === 9) {
                 game.status = 'GAME_OVER';
-                if (game.gameData.teams.A.score > game.gameData.teams.B.score) game.gameData.winner = 'A';
-                else if (game.gameData.teams.B.score > game.gameData.teams.A.score) game.gameData.winner = 'B';
-                else game.gameData.winner = 'DRAW';
+                const { A, B } = game.gameData.teams;
+                game.gameData.winner = A.score > B.score ? 'A' : B.score > A.score ? 'B' : 'DRAW';
             }
 
             emitGameState(game, io);
         });
 
-        socket.on('pass_turn', ({ targetId }: { targetId: string }) => {
-            let game: GameState | undefined;
-            let playerIndex = -1;
-            rooms.forEach(g => {
-                const idx = g.players.findIndex(p => p.id === socket.id);
-                if (idx !== -1) {
-                    game = g;
-                    playerIndex = idx;
-                }
-            });
 
-            if (!game) return;
-            const player = game.players[playerIndex];
+        // Pass turn to teammate (when player has no cards left)
+        socket.on('pass_turn', ({ roomId, targetId }: { roomId: string, targetId: string }) => {
+            const game = rooms.get(roomId);
+            if (!game) {
+                socket.emit('error', { message: 'Room not found' });
+                return;
+            }
+
+            // Find player and validate turn
+            const playerIndex = game.players.findIndex(p => p.id === socket.id);
+            if (playerIndex === -1) {
+                socket.emit('error', { message: 'You are not in this game' });
+                return;
+            }
 
             if (game.gameData.turnIndex !== playerIndex) {
                 socket.emit('error', { message: "It's not your turn" });
                 return;
             }
 
+            const player = game.players[playerIndex];
+
             if (player.hand.length > 0) {
-                socket.emit('error', { message: "You still have cards" });
+                socket.emit('error', { message: 'You still have cards' });
                 return;
             }
 
+            // Validate target
             const targetIndex = game.players.findIndex(p => p.id === targetId);
-            if (targetIndex === -1) return;
+            if (targetIndex === -1) {
+                socket.emit('error', { message: 'Target player not found' });
+                return;
+            }
+
             const target = game.players[targetIndex];
 
             if (target.team !== player.team) {
-                socket.emit('error', { message: "Must pass to teammate" });
+                socket.emit('error', { message: 'Must pass to a teammate' });
                 return;
             }
 
+            if (target.hand.length === 0) {
+                socket.emit('error', { message: 'Cannot pass to teammate with no cards' });
+                return;
+            }
+
+            // Pass turn
             game.gameData.turnIndex = targetIndex;
             game.gameData.turnState = 'NORMAL';
             game.gameData.log.push(`${player.name} passed turn to ${target.name}`);
@@ -421,47 +399,63 @@ export const setupSocketHandlers = (io: Server) => {
             emitGameState(game, io);
         });
 
-        socket.on('leave_room', () => {
-            rooms.forEach((game, roomId) => {
-                const playerIndex = game.players.findIndex(p => p.id === socket.id);
-                if (playerIndex !== -1) {
-                    const player = game.players[playerIndex];
-                    game.players.splice(playerIndex, 1);
 
-                    // If room is empty, delete it
-                    if (game.players.length === 0) {
-                        rooms.delete(roomId);
-                        console.log(`Room ${roomId} deleted (no players left)`);
-                    } else {
-                        // If leaving player was owner, assign new owner
-                        if (player.isOwner && game.players.length > 0) {
-                            game.players[0].isOwner = true;
-                        }
-                        io.to(roomId).emit('player_update', game.players);
-                    }
+        // Player leaves the room
+        socket.on('leave_room', ({ roomId }: { roomId: string }) => {
+            const game = rooms.get(roomId);
+            if (!game) {
+                socket.emit('error', { message: 'Room not found' });
+                return;
+            }
 
-                    console.log(`${player.name} left room ${roomId}`);
-                    socket.leave(roomId);
-                }
-            });
+            const playerIndex = game.players.findIndex(p => p.id === socket.id);
+            if (playerIndex === -1) {
+                socket.emit('error', { message: 'You are not in this room' });
+                return;
+            }
+
+            const player = game.players[playerIndex];
+            game.players.splice(playerIndex, 1);
+            socket.leave(roomId);
+
+            // If room is empty, delete it
+            if (game.players.length === 0) {
+                rooms.delete(roomId);
+                console.log(`Room ${roomId} deleted (no players left)`);
+                return;
+            }
+
+            // If leaving player was owner, assign new owner
+            if (player.isOwner) {
+                game.players[0].isOwner = true;
+            }
+
+            io.to(roomId).emit('player_update', game.players);
+            console.log(`${player.name} left room ${roomId}`);
         });
 
+        
+        // Handle player disconnect (cannot receive data - connection is closed)
         socket.on('disconnect', () => {
             console.log(`User disconnected: ${socket.id}`);
-            // Don't remove players on disconnect - they might reconnect
-            // Players will reconnect with their playerId and update their socket.id
-            rooms.forEach((game) => {
-                const playerIndex = game.players.findIndex(p => p.id === socket.id);
-                if (playerIndex !== -1) {
-                    if (game.status === 'LOBBY') {
-                        // In lobby, just log the disconnect but keep the player
-                        console.log(`Player ${game.players[playerIndex].name} disconnected from lobby, waiting for reconnection`);
-                    } else {
-                        // During game, also keep player for reconnection
-                        console.log(`Player ${game.players[playerIndex].name} disconnected during game`);
-                    }
-                }
-            });
+            
+            // Find which room this socket was in
+            for (const [roomId, game] of rooms) {
+                const player = game.players.find(p => p.id === socket.id);
+                if (!player) continue;
+
+                // Don't remove player - they might reconnect with same playerId
+                const status = game.status === 'LOBBY' ? 'lobby' : 'game';
+                console.log(`${player.name} disconnected from ${status} in room ${roomId}`);
+                
+                // Notify other players about the disconnect
+                io.to(roomId).emit('player_disconnected', { 
+                    playerId: player.playerId,
+                    playerName: player.name 
+                });
+                
+                break; // Player can only be in one room
+            }
         });
     });
 };
@@ -473,18 +467,20 @@ const emitGameState = (game: GameState, io: Server) => {
             hand: player.hand,
             turnIndex: game.gameData.turnIndex,
             players: game.players.map(p => ({
-                ...p,
-                hand: [], // Hide hands
-                cardCount: p.hand.length // Useful for UI
+                id: p.id,
+                playerId: p.playerId,
+                name: p.name,
+                team: p.team,
+                isOwner: p.isOwner,
+                cardCount: p.hand.length
             })),
             lastAsk: game.gameData.lastAsk,
-            log: game.gameData.log,
             myTeam: player.team,
             scores: {
                 A: game.gameData.teams.A.score,
                 B: game.gameData.teams.B.score
             },
-            discardedSets: game.gameData.discardedSets,
+            completedSets: game.gameData.completedSets,
             turnState: game.gameData.turnState,
             winner: game.gameData.winner
         });
