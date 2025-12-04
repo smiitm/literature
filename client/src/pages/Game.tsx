@@ -1,35 +1,21 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
 import { Button } from '@/components/ui/button';
-import { type Card } from '@/lib/gameUtils';
 import { GameHeader } from '@/components/GameHeader';
 import { PlayerGrid } from '@/components/PlayerGrid';
 import { ActionPanel } from '@/components/ActionPanel';
 import { PlayerHand } from '@/components/PlayerHand';
-
-interface Player {
-    id: string;
-    name: string;
-    team: 'A' | 'B' | null;
-    isOwner: boolean;
-    cardCount?: number;
-}
-
-interface LastAsk {
-    askerName: string;
-    targetName: string;
-    card: Card;
-    success: boolean;
-}
+import type { Player, Card, LastAsk } from '@/types';
 
 interface GameProps {
     initialHand: Card[];
     initialTurnIndex: number;
     initialPlayers: Player[];
     myTeam: 'A' | 'B' | null;
+    roomId: string;
 }
 
-export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: GameProps) {
+export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, roomId }: GameProps) {
     const [hand, setHand] = useState<Card[]>(initialHand);
     const [turnIndex, setTurnIndex] = useState(initialTurnIndex);
     const [players, setPlayers] = useState<Player[]>(initialPlayers);
@@ -94,6 +80,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam }: 
                     turnState={turnState}
                     myTeam={myTeam}
                     socketId={socket.id || ''}
+                    roomId={roomId}
                 />
             </div>
 

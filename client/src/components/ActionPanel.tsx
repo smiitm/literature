@@ -9,13 +9,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { getSuitIcon, getSuitColor, getSetCards, ranks, suits } from '@/lib/gameUtils';
-
-interface Player {
-    id: string;
-    name: string;
-    team: 'A' | 'B' | null;
-    cardCount?: number;
-}
+import type { Player } from '@/types';
 
 interface ActionPanelProps {
     isMyTurn: boolean;
@@ -24,9 +18,10 @@ interface ActionPanelProps {
     turnState: 'NORMAL' | 'PASSING_TURN';
     myTeam: 'A' | 'B' | null;
     socketId: string;
+    roomId: string;
 }
 
-export function ActionPanel({ isMyTurn, turnIndex, players, turnState, myTeam, socketId }: ActionPanelProps) {
+export function ActionPanel({ isMyTurn, turnIndex, players, turnState, myTeam, socketId, roomId }: ActionPanelProps) {
     const [passTarget, setPassTarget] = useState<string>('');
 
     // Ask Card State
@@ -44,6 +39,7 @@ export function ActionPanel({ isMyTurn, turnIndex, players, turnState, myTeam, s
     const handleAsk = () => {
         if (!selectedOpponent || !askRank || !askSuit) return;
         socket.emit('ask_card', {
+            roomId,
             targetId: selectedOpponent,
             card: { rank: askRank, suit: askSuit }
         });
@@ -63,7 +59,7 @@ export function ActionPanel({ isMyTurn, turnIndex, players, turnState, myTeam, s
             return;
         }
 
-        socket.emit('declare_set', { declaration });
+        socket.emit('declare_set', { roomId, declaration });
         setIsDeclaring(false);
         setDeclareSet('');
         setDeclarationMap({});
@@ -71,7 +67,7 @@ export function ActionPanel({ isMyTurn, turnIndex, players, turnState, myTeam, s
 
     const handlePassTurn = () => {
         if (!passTarget) return;
-        socket.emit('pass_turn', { targetId: passTarget });
+        socket.emit('pass_turn', { roomId, targetId: passTarget });
         setPassTarget('');
     };
 
@@ -89,7 +85,7 @@ export function ActionPanel({ isMyTurn, turnIndex, players, turnState, myTeam, s
                             <SelectValue placeholder="Select Teammate..." />
                         </SelectTrigger>
                         <SelectContent>
-                            {players.filter(p => p.team === myTeam && p.id !== socketId).map(p => (
+                            {players.filter(p => p.team === myTeam && p.id !== socketId && (p.cardCount ?? 0) > 0).map(p => (
                                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                             ))}
                         </SelectContent>
@@ -204,7 +200,7 @@ export function ActionPanel({ isMyTurn, turnIndex, players, turnState, myTeam, s
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {players.filter(p => p.team === myTeam).map(p => (
-                                                            <SelectItem key={p.id} value={p.id}>{p.name} {p.id === socketId ? '(You)' : ''}</SelectItem>
+                                                            <SelectItem key={p.playerId} value={p.playerId}>{p.name} {p.id === socketId ? '(You)' : ''}</SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>

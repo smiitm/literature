@@ -1,4 +1,5 @@
-import { getCardImage, type Card } from '@/lib/gameUtils';
+import { getCardImage } from '@/lib/gameUtils';
+import type { Card } from '@/types';
 
 interface PlayerHandProps {
     hand: Card[];

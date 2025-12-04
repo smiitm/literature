@@ -1,7 +1,4 @@
-export interface Card {
-    suit: 'Spades' | 'Hearts' | 'Clubs' | 'Diamonds' | 'Joker';
-    rank: string;
-}
+import type { Card } from '@/types';
 
 export const suits = ['Spades', 'Hearts', 'Clubs', 'Diamonds', 'Joker'];
 export const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'Red', 'Black'];

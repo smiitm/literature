@@ -1,14 +1,8 @@
 import { ModeToggle } from './mode-toggle';
 import { Button } from '@/components/ui/button';
 import { disconnectSocket } from '@/lib/socketManager';
-import { getTeamColor, getSuitIcon, type Card } from '@/lib/gameUtils';
-
-interface LastAsk {
-    askerName: string;
-    targetName: string;
-    card: Card;
-    success: boolean;
-}
+import { getTeamColor, getSuitIcon } from '@/lib/gameUtils';
+import type { LastAsk } from '@/types';
 
 interface GameHeaderProps {
     lastAsk: LastAsk | null;

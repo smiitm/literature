@@ -1,11 +1,5 @@
 import { getTeamColor } from '@/lib/gameUtils';
-
-interface Player {
-    id: string;
-    name: string;
-    team: 'A' | 'B' | null;
-    cardCount?: number;
-}
+import type { Player } from '@/types';
 
 interface PlayerGridProps {
     players: Player[];

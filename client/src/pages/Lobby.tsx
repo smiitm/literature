@@ -12,13 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-interface Player {
-    id: string;
-    playerId: string;
-    name: string;
-    isOwner: boolean;
-}
+import type { Player } from '@/types';
 
 interface LobbyProps {
     roomId: string;
@@ -40,11 +34,6 @@ export function Lobby({ roomId, players }: LobbyProps) {
             saveSession(roomId, playerName);
         }
     }, [roomId, playerName]);
-        // Save session when successfully joined/created room
-        if (roomId && playerName) {
-            saveSession(roomId, playerName);
-        }
-    }, [roomId, playerName]);
 
     useEffect(() => {
         socket.on('error', ({ message }) => {
@@ -56,7 +45,6 @@ export function Lobby({ roomId, players }: LobbyProps) {
         };
     }, []);
 
-    const handleCreateRoom = async () => {
     const handleCreateRoom = async () => {
         if (!playerName) return setError('Name is required');
 
@@ -72,7 +60,6 @@ export function Lobby({ roomId, players }: LobbyProps) {
         }
     };
 
-    const handleJoinRoom = async () => {
     const handleJoinRoom = async () => {
         if (!playerName) return setError('Name is required');
         if (!roomCode) return setError('Room Code is required');
@@ -114,21 +101,13 @@ export function Lobby({ roomId, players }: LobbyProps) {
                     <div className="mt-6 text-center text-sm text-muted-foreground">
                         {players.find(p => p.playerId === getPlayerId())?.isOwner ? (
                             <Button
-                                onClick={() => socket.emit('start_game')}
+                                onClick={() => socket.emit('start_game', { roomId })}
                             >
                                 Start Game
                             </Button>
                         ) : (
                             'Waiting for owner to start game...'
                         )}
-                    </div>
-                    <div className="mt-4 text-center">
-                        <Button
-                            variant="outline"
-                            onClick={handleLeaveRoom}
-                        >
-                            Leave Room
-                        </Button>
                     </div>
                     <div className="mt-4 text-center">
                         <Button

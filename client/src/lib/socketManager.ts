@@ -47,7 +47,10 @@ export function connectSocket(): Promise<void> {
 export function disconnectSocket() {
     // Emit leave_room event before disconnecting
     if (socket.connected) {
-        socket.emit('leave_room');
+        const session = getSession();
+        if (session) {
+            socket.emit('leave_room', { roomId: session.roomId });
+        }
     }
 
     socket.disconnect();

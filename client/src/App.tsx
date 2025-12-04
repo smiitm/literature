@@ -4,15 +4,7 @@ import { Game } from './pages/Game';
 import { socket } from './socket';
 import { connectSocket, getSession, getPlayerId } from './lib/socketManager';
 import { ThemeProvider } from './components/theme-provider';
-
-interface Player {
-  id: string;
-  playerId: string;
-  name: string;
-  team: 'A' | 'B' | null;
-  isOwner: boolean;
-  hand: any[];
-}
+import type { Player } from './types';
 
 function App() {
   const [gameState, setGameState] = useState<'LOBBY' | 'GAME'>('LOBBY');
@@ -82,34 +74,13 @@ function App() {
       setGameState('GAME');
     });
 
-    // Handle errors
-    socket.on('error', ({ message }) => {
-      
-      // Request to rejoin the in-progress game
-      if (message === 'Game already started') {
-        socket.emit('rejoin_game');
-      }
-    });
-
     return () => {
       socket.off('joined_game');
       socket.off('game_created');
       socket.off('player_update');
       socket.off('game_started_personal');
-      socket.off('error');
     };
   }, []);
-
-  // Show loading during reconnection
-  if (isReconnecting) {
-    return (
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
-          <div className="text-2xl font-semibold">Reconnecting...</div>
-        </div>
-      </ThemeProvider>
-    );
-  }
 
   // Show loading during reconnection
   if (isReconnecting) {
@@ -132,6 +103,7 @@ function App() {
           initialTurnIndex={turnIndex}
           initialPlayers={players}
           myTeam={myTeam}
+          roomId={roomId}
         />
       )}
     </ThemeProvider>
