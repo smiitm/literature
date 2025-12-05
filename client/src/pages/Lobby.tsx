@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
 import { connectSocket, saveSession, disconnectSocket, getPlayerId } from '../lib/socketManager';
+import { toast } from '@/components/ui/sonner';
 import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,57 +23,49 @@ interface LobbyProps {
 export function Lobby({ roomId, players }: LobbyProps) {
     const [playerName, setPlayerName] = useState('');
     const [roomCode, setRoomCode] = useState('');
-    const [error, setError] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
 
-    // Effect to clear error when room changes
+    // Save session when successfully joined/created room
     useEffect(() => {
-        setError('');
-        // Save session when successfully joined/created room
         if (roomId && playerName) {
             saveSession(roomId, playerName);
         }
     }, [roomId, playerName]);
 
-    useEffect(() => {
-        socket.on('error', ({ message }) => {
-            setError(message);
-        });
-
-        return () => {
-            socket.off('error');
-        };
-    }, []);
-
     const handleCreateRoom = async () => {
-        if (!playerName) return setError('Name is required');
+        if (!playerName) {
+            toast.error('Name is required');
+            return;
+        }
 
         try {
-            // Connect socket
             await connectSocket();
-
             const playerId = getPlayerId();
             socket.emit('create_game', { playerName, playerId });
             setShowCreateModal(false);
-        } catch (err) {
-            setError('Failed to connect to server');
+        } catch {
+            toast.error('Failed to connect to server');
         }
     };
 
     const handleJoinRoom = async () => {
-        if (!playerName) return setError('Name is required');
-        if (!roomCode) return setError('Room Code is required');
+        if (!playerName) {
+            toast.error('Name is required');
+            return;
+        }
+        if (!roomCode) {
+            toast.error('Room Code is required');
+            return;
+        }
 
         try {
-            // Connect socket
             await connectSocket();
-
             const playerId = getPlayerId();
             socket.emit('join_game', { roomCode, playerName, playerId });
             setShowJoinModal(false);
-        } catch (err) {
-            setError('Failed to connect to server');
+        } catch {
+            toast.error('Failed to connect to server');
         }
     };
 
@@ -133,13 +126,6 @@ export function Lobby({ roomId, players }: LobbyProps) {
 
             {/* Subtitle */}
             <p className="text-3xl mb-16 text-muted-foreground">probability to 50/50 hi hai</p>
-
-            {/* Error display */}
-            {error && (
-                <div className="mb-6 p-4 bg-destructive/10 text-destructive rounded-lg text-sm max-w-md w-full text-center">
-                    {error}
-                </div>
-            )}
 
             {/* Two buttons side by side */}
             <div className="flex gap-6">

@@ -5,7 +5,7 @@ import { GameHeader } from '@/components/GameHeader';
 import { PlayerGrid } from '@/components/PlayerGrid';
 import { ActionPanel } from '@/components/AskCard';
 import { PlayerHand } from '@/components/PlayerHand';
-import type { Player, Card, LastAsk } from '@/types';
+import type { Player, Card, LastAsk, CompletedSet } from '@/types';
 
 interface GameProps {
     initialHand: Card[];
@@ -23,6 +23,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
     const [turnState, setTurnState] = useState<'NORMAL' | 'PASSING_TURN'>('NORMAL');
     const [winner, setWinner] = useState<'A' | 'B' | 'DRAW' | undefined>(undefined);
     const [scores, setScores] = useState<{ A: number, B: number }>({ A: 0, B: 0 });
+    const [completedSets, setCompletedSets] = useState<CompletedSet[]>([]);
 
     const isMyTurn = players[turnIndex]?.id === socket.id;
 
@@ -35,6 +36,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
             if (data.turnState) setTurnState(data.turnState);
             if (data.winner) setWinner(data.winner);
             if (data.scores) setScores(data.scores);
+            if (data.completedSets) setCompletedSets(data.completedSets);
         });
 
         return () => {
@@ -67,6 +69,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
             <GameHeader
                 lastAsk={lastAsk}
                 scores={scores}
+                completedSets={completedSets}
                 players={players}
                 myTeam={myTeam}
                 socketId={socket.id || ''}

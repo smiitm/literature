@@ -4,6 +4,7 @@ import { Game } from './pages/Game';
 import { socket } from './socket';
 import { connectSocket, getSession, getPlayerId } from './lib/socketManager';
 import { ThemeProvider } from './components/ui/theme-provider';
+import { Toaster, toast } from './components/ui/sonner';
 import type { Player } from './types';
 
 function App() {
@@ -56,10 +57,12 @@ function App() {
   useEffect(() => {
     socket.on('joined_game', ({ roomId }) => {
       setRoomId(roomId);
+      toast.success('Joined room successfully');
     });
 
     socket.on('game_created', ({ roomId }) => {
       setRoomId(roomId);
+      toast.success('Room created successfully');
     });
 
     socket.on('player_update', (updatedPlayers: Player[]) => {
@@ -72,6 +75,15 @@ function App() {
       setPlayers(data.players);
       setMyTeam(data.myTeam);
       setGameState('GAME');
+      toast.success('Game started!');
+    });
+
+    socket.on('error', ({ message }) => {
+      toast.error(message);
+    });
+
+    socket.on('player_disconnected', ({ playerName }) => {
+      toast.warning(`${playerName} disconnected`);
     });
 
     return () => {
@@ -79,6 +91,8 @@ function App() {
       socket.off('game_created');
       socket.off('player_update');
       socket.off('game_started_personal');
+      socket.off('error');
+      socket.off('player_disconnected');
     };
   }, []);
 
@@ -89,6 +103,7 @@ function App() {
         <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
           <div className="text-2xl font-semibold">Reconnecting...</div>
         </div>
+        <Toaster richColors position="top-right" />
       </ThemeProvider>
     );
   }
@@ -106,6 +121,7 @@ function App() {
           roomId={roomId}
         />
       )}
+      <Toaster richColors position="top-right" />
     </ThemeProvider>
   );
 }
