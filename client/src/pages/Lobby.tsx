@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { socket } from '../socket';
 import { connectSocket, saveSession, disconnectSocket, getPlayerId } from '../lib/socketManager';
-import { ModeToggle } from '@/components/mode-toggle';
+import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,

@@ -9,17 +9,11 @@ interface SessionData {
     playerId: string;
 }
 
-// Generate or retrieve persistent player ID
 function generatePlayerId(): string {
     let playerId = localStorage.getItem(PLAYER_ID_KEY);
 
     if (!playerId) {
-        // Generate UUID v4
-        playerId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
+        playerId = crypto.randomUUID();
         localStorage.setItem(PLAYER_ID_KEY, playerId);
     }
 
@@ -30,22 +24,26 @@ export function getPlayerId(): string {
     return generatePlayerId();
 }
 
-export function connectSocket(): Promise<void> {
-    return new Promise((resolve) => {
+export function connectSocket(timeout = 5000): Promise<void> {
+    return new Promise((resolve, reject) => {
         if (socket.connected) {
             resolve();
             return;
         }
 
+        const timer = setTimeout(() => {
+            reject(new Error('Socket connection timeout'));
+        }, timeout);
+
         socket.connect();
         socket.once('connect', () => {
+            clearTimeout(timer);
             resolve();
         });
     });
 }
 
 export function disconnectSocket() {
-    // Emit leave_room event before disconnecting
     if (socket.connected) {
         const session = getSession();
         if (session) {
@@ -67,12 +65,11 @@ export function saveSession(roomId: string, playerName: string) {
 }
 
 export function getSession(): SessionData | null {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return null;
-
     try {
-        return JSON.parse(data);
+        const data = localStorage.getItem(STORAGE_KEY);
+        return data ? JSON.parse(data) : null;
     } catch {
+        localStorage.removeItem(STORAGE_KEY); 
         return null;
     }
 }

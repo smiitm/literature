@@ -1,15 +1,20 @@
-import { ModeToggle } from './mode-toggle';
+import { ModeToggle } from './ui/mode-toggle';
 import { Button } from '@/components/ui/button';
 import { disconnectSocket } from '@/lib/socketManager';
 import { getTeamColor, getSuitIcon } from '@/lib/gameUtils';
-import type { LastAsk } from '@/types';
+import { DeclareSet } from './DeclareSet';
+import type { LastAsk, Player } from '@/types';
 
 interface GameHeaderProps {
     lastAsk: LastAsk | null;
     scores: { A: number, B: number };
+    players: Player[];
+    myTeam: 'A' | 'B' | null;
+    socketId: string;
+    roomId: string;
 }
 
-export function GameHeader({ lastAsk, scores }: GameHeaderProps) {
+export function GameHeader({ lastAsk, scores, players, myTeam, socketId, roomId }: GameHeaderProps) {
     const handleLeaveRoom = () => {
         disconnectSocket();
         window.location.reload();
@@ -26,6 +31,12 @@ export function GameHeader({ lastAsk, scores }: GameHeaderProps) {
                 >
                     Leave
                 </Button>
+                <DeclareSet
+                    players={players}
+                    myTeam={myTeam}
+                    socketId={socketId}
+                    roomId={roomId}
+                />
             </div>
 
             {/* Last Transaction */}

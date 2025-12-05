@@ -3,7 +3,7 @@ import { socket } from '../socket';
 import { Button } from '@/components/ui/button';
 import { GameHeader } from '@/components/GameHeader';
 import { PlayerGrid } from '@/components/PlayerGrid';
-import { ActionPanel } from '@/components/ActionPanel';
+import { ActionPanel } from '@/components/AskCard';
 import { PlayerHand } from '@/components/PlayerHand';
 import type { Player, Card, LastAsk } from '@/types';
 
@@ -64,7 +64,14 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
 
     return (
         <div className="flex flex-col h-screen bg-background text-foreground">
-            <GameHeader lastAsk={lastAsk} scores={scores} />
+            <GameHeader
+                lastAsk={lastAsk}
+                scores={scores}
+                players={players}
+                myTeam={myTeam}
+                socketId={socket.id || ''}
+                roomId={roomId}
+            />
 
             <div className="flex-1 flex overflow-hidden">
                 <PlayerGrid

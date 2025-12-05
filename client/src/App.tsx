@@ -3,7 +3,7 @@ import { Lobby } from './pages/Lobby';
 import { Game } from './pages/Game';
 import { socket } from './socket';
 import { connectSocket, getSession, getPlayerId } from './lib/socketManager';
-import { ThemeProvider } from './components/theme-provider';
+import { ThemeProvider } from './components/ui/theme-provider';
 import type { Player } from './types';
 
 function App() {

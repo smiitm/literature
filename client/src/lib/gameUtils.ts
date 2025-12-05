@@ -1,41 +1,37 @@
 import type { Card } from '@/types';
 
-export const suits = ['Spades', 'Hearts', 'Clubs', 'Diamonds', 'Joker'];
-export const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'Red', 'Black'];
+export const suits = ['Spades', 'Hearts', 'Clubs', 'Diamonds', 'Joker'] as const;
+export const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'Red', 'Black'] as const;
+
+const LOW_RANKS = ['A', '2', '3', '4', '5', '6'] as const;
+const HIGH_RANKS = ['8', '9', '10', 'J', 'Q', 'K'] as const;
+const RED_SUITS = ['Hearts', 'Diamonds'] as const;
 
 export const getCardImage = (suit: string, rank: string) => {
     const suitLower = suit.toLowerCase();
     let rankLower = rank.toLowerCase();
 
-    // Handle Jokers
     if (suit === 'Joker') {
         return rank === 'Red'
             ? new URL('../assets/cards/joker_red.svg', import.meta.url).href
             : new URL('../assets/cards/joker_black.svg', import.meta.url).href;
     }
 
-    // Convert A to a for aces
-    if (rank === 'A') rankLower = 'a';
-    if (rank === 'J') rankLower = 'j';
-    if (rank === 'Q') rankLower = 'q';
-    if (rank === 'K') rankLower = 'k';
-
     return new URL(`../assets/cards/${suitLower}_${rankLower}.svg`, import.meta.url).href;
 };
 
-export const getSuitIcon = (suit: string) => {
-    switch (suit) {
-        case 'Spades': return '♠️';
-        case 'Hearts': return '♥️';
-        case 'Clubs': return '♣️';
-        case 'Diamonds': return '♦️';
-        case 'Joker': return '🃏';
-        default: return '';
-    }
+const SUIT_ICONS: Record<string, string> = {
+    Spades: '♠️',
+    Hearts: '♥️',
+    Clubs: '♣️',
+    Diamonds: '♦️',
+    Joker: '🃏',
 };
 
+export const getSuitIcon = (suit: string) => SUIT_ICONS[suit] ?? '';
+
 export const getSuitColor = (suit: string) => {
-    return ['Hearts', 'Diamonds'].includes(suit) ? 'text-red-500' : 'text-foreground';
+    return (RED_SUITS as readonly string[]).includes(suit) ? 'text-red-500' : 'text-foreground';
 };
 
 export const getTeamColor = (team: 'A' | 'B' | null) => {
@@ -57,9 +53,7 @@ export const getSetCards = (setName: string): Card[] => {
     }
     if (!setName) return [];
     const [range, suit] = setName.split(' ');
-    const ranks = range === 'Low'
-        ? ['A', '2', '3', '4', '5', '6']
-        : ['8', '9', '10', 'J', 'Q', 'K'];
+    const setRanks = range === 'Low' ? LOW_RANKS : HIGH_RANKS;
 
-    return ranks.map(rank => ({ suit: suit as any, rank }));
+    return setRanks.map(rank => ({ suit: suit as any, rank }));
 };
