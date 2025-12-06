@@ -94,7 +94,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
                 />
             </div>
 
-            <PlayerHand hand={hand} myTeam={myTeam} />
+            <PlayerHand hand={hand} myTeam={myTeam} playerName={players.find(p => p.id === socket.id)?.name || 'You'} />
         </div>
     );
 }
