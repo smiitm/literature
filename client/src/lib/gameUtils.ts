@@ -57,3 +57,17 @@ export const getSetCards = (setName: string): Card[] => {
 
     return setRanks.map(rank => ({ suit: suit as any, rank }));
 };
+
+export const getCardKey = (card: Card) => `${card.rank}-${card.suit}`;
+
+export const ALL_SETS = [
+    { value: 'Low Spades', label: 'Low Spades (A-6)' },
+    { value: 'High Spades', label: 'High Spades (8-K)' },
+    { value: 'Low Hearts', label: 'Low Hearts (A-6)' },
+    { value: 'High Hearts', label: 'High Hearts (8-K)' },
+    { value: 'Low Clubs', label: 'Low Clubs (A-6)' },
+    { value: 'High Clubs', label: 'High Clubs (8-K)' },
+    { value: 'Low Diamonds', label: 'Low Diamonds (A-6)' },
+    { value: 'High Diamonds', label: 'High Diamonds (8-K)' },
+    { value: 'Sevens', label: 'Sevens (7s + Jokers)' },
+] as const;

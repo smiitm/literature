@@ -3,7 +3,7 @@ import { socket } from '../socket';
 import { Button } from '@/components/ui/button';
 import { GameHeader } from '@/components/GameHeader';
 import { PlayerGrid } from '@/components/PlayerGrid';
-import { ActionPanel } from '@/components/AskCard';
+import { AskCard } from '@/components/AskCard';
 import { PlayerHand } from '@/components/PlayerHand';
 import type { Player, Card, LastAsk, CompletedSet } from '@/types';
 
@@ -74,6 +74,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
                 myTeam={myTeam}
                 socketId={socket.id || ''}
                 roomId={roomId}
+                hand={hand}
             />
 
             <div className="flex-1 flex overflow-hidden">
@@ -83,9 +84,8 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
                     socketId={socket.id || ''}
                 />
 
-                <ActionPanel
+                <AskCard
                     isMyTurn={isMyTurn}
-                    turnIndex={turnIndex}
                     players={players}
                     turnState={turnState}
                     myTeam={myTeam}
