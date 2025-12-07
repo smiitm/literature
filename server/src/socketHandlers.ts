@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { GameState, Player, Card } from './types';
-import { generateRoomId, getSetName, getSetCards, generateDeck, shuffleArray, assignTeams, distributeCards } from './utils';
+import { generateRoomId, getSetName, getSetCards, generateDeck, shuffleArray, distributeCards } from './utils';
 
 // A map storing all active game rooms by roomId
 const rooms = new Map<string, GameState>();
@@ -111,6 +111,31 @@ export const setupSocketHandlers = (io: Server) => {
         });
 
 
+        // Player selects their team in the lobby
+        socket.on('select_team', ({ roomId, playerId, team }: { roomId: string; playerId: string; team: 'A' | 'B' }) => {
+            const game = rooms.get(roomId);
+            if (!game) {
+                socket.emit('error', { message: 'Room not found' });
+                return;
+            }
+
+            if (game.status !== 'LOBBY') {
+                socket.emit('error', { message: 'Game already started' });
+                return;
+            }
+
+            const player = game.players.find(p => p.playerId === playerId);
+            if (!player) {
+                socket.emit('error', { message: 'Player not found' });
+                return;
+            }
+
+            player.team = team;
+            io.to(roomId).emit('player_update', game.players);
+            console.log(`${player.name} joined Team ${team} in room ${roomId}`);
+        });
+
+
         // Starts the game, only room owner can start
         socket.on('start_game', ({ roomId, playerId }: { roomId: string; playerId: string }) => {
             const game = rooms.get(roomId);
@@ -130,14 +155,26 @@ export const setupSocketHandlers = (io: Server) => {
             player.id = socket.id;
 
             if (game.players.length < 4) {
-                // Minimum 4 players for Literature
-                // For testing purposes during development, allow fewer
-                // socket.emit('error', { message: 'Need at least 4 players' });
-                // return;
+                socket.emit('error', { message: 'Need at least 4 players to start' });
+                return;
             }
 
-            // Setup game
-            assignTeams(game.players);
+            // Validate all players have chosen a team
+            const unassignedPlayers = game.players.filter(p => p.team === null);
+            if (unassignedPlayers.length > 0) {
+                socket.emit('error', { message: 'All players must choose a team before starting' });
+                return;
+            }
+
+            // Validate teams are balanced
+            const teamA = game.players.filter(p => p.team === 'A');
+            const teamB = game.players.filter(p => p.team === 'B');
+            if (teamA.length !== teamB.length) {
+                socket.emit('error', { message: `Teams must be balanced (Team A: ${teamA.length}, Team B: ${teamB.length})` });
+                return;
+            }
+
+            // Setup game - teams are already assigned by players, no need to auto-assign
             const deck = shuffleArray(generateDeck());
             distributeCards(deck, game.players);
 
