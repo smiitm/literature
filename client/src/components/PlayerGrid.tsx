@@ -4,7 +4,7 @@ import type { Player } from '@/types';
 interface PlayerGridProps {
     players: Player[];
     turnIndex: number;
-    socketId: string;
+    playerId: string;
 }
 
 export function PlayerGrid({ players, turnIndex }: PlayerGridProps) {

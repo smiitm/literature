@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
+import { Home } from './pages/Home';
 import { Lobby } from './pages/Lobby';
 import { Game } from './pages/Game';
 import { socket } from './socket';
-import { connectSocket, getSession, getPlayerId } from './lib/socketManager';
+import { connectSocket, getSession, getPlayerId, saveSession, clearSession } from './lib/socketManager';
 import { ThemeProvider } from './components/ui/theme-provider';
 import { Toaster, toast } from './components/ui/sonner';
 import type { Player } from './types';
 
+type GameState = 'HOME' | 'LOBBY' | 'GAME';
+
 function App() {
-  const [gameState, setGameState] = useState<'LOBBY' | 'GAME'>('LOBBY');
+  const [gameState, setGameState] = useState<GameState>('HOME');
   const [roomId, setRoomId] = useState<string>('');
   const [players, setPlayers] = useState<Player[]>([]);
   const [myTeam, setMyTeam] = useState<'A' | 'B' | null>(null);
@@ -33,6 +36,8 @@ function App() {
           });
         } catch (err) {
           console.error('Failed to reconnect:', err);
+          clearSession();
+          toast.error('Failed to reconnect to session. Please join again.');
         }
       }
 
@@ -55,13 +60,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    socket.on('joined_game', ({ roomId }) => {
+    socket.on('joined_game', ({ roomId, playerName }) => {
       setRoomId(roomId);
+      saveSession(roomId, playerName);
+      setGameState('LOBBY');
       toast.success('Joined room successfully');
     });
 
-    socket.on('game_created', ({ roomId }) => {
+    socket.on('game_created', ({ roomId, playerName }) => {
       setRoomId(roomId);
+      saveSession(roomId, playerName);
+      setGameState('LOBBY');
       toast.success('Room created successfully');
     });
 
@@ -110,9 +119,9 @@ function App() {
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      {gameState === 'LOBBY' ? (
-        <Lobby roomId={roomId} players={players} />
-      ) : (
+      {gameState === 'HOME' && <Home />}
+      {gameState === 'LOBBY' && <Lobby roomId={roomId} players={players} />}
+      {gameState === 'GAME' && (
         <Game
           initialHand={hand}
           initialTurnIndex={turnIndex}

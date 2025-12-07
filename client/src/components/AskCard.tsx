@@ -16,11 +16,11 @@ interface AskCardProps {
     players: Player[];
     turnState: 'NORMAL' | 'PASSING_TURN';
     myTeam: 'A' | 'B' | null;
-    socketId: string;
+    playerId: string;
     roomId: string;
 }
 
-export function AskCard({ isMyTurn, players, turnState, myTeam, socketId, roomId }: AskCardProps) {
+export function AskCard({ isMyTurn, players, turnState, myTeam, playerId, roomId }: AskCardProps) {
     const [passTarget, setPassTarget] = useState<string>('');
 
     // Ask Card State
@@ -30,13 +30,13 @@ export function AskCard({ isMyTurn, players, turnState, myTeam, socketId, roomId
 
     // Memoize filtered lists to avoid recalculating on every render
     const opponents = useMemo(
-        () => players.filter(p => p.id !== socketId && p.team !== myTeam && (p.cardCount ?? 0) > 0),
-        [players, socketId, myTeam]
+        () => players.filter(p => p.playerId !== playerId && p.team !== myTeam && (p.cardCount ?? 0) > 0),
+        [players, playerId, myTeam]
     );
 
     const teammates = useMemo(
-        () => players.filter(p => p.team === myTeam && p.id !== socketId && (p.cardCount ?? 0) > 0),
-        [players, socketId, myTeam]
+        () => players.filter(p => p.team === myTeam && p.playerId !== playerId && (p.cardCount ?? 0) > 0),
+        [players, playerId, myTeam]
     );
 
     const resetAskForm = () => {
@@ -75,7 +75,7 @@ export function AskCard({ isMyTurn, players, turnState, myTeam, socketId, roomId
                         </SelectTrigger>
                         <SelectContent>
                             {teammates.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                <SelectItem key={p.playerId} value={p.playerId}>{p.name}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -100,7 +100,7 @@ export function AskCard({ isMyTurn, players, turnState, myTeam, socketId, roomId
                                     <SelectValue placeholder="Select..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {opponents.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                                    {opponents.map(p => <SelectItem key={p.playerId} value={p.playerId}>{p.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>

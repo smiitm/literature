@@ -40,7 +40,7 @@ export const setupSocketHandlers = (io: Server) => {
             rooms.set(roomId, newGame); // Store game data in map
             socket.join(roomId);        // Join the Socket.IO room
 
-            socket.emit('game_created', { roomId });
+            socket.emit('game_created', { roomId, playerName });
             io.to(roomId).emit('player_update', newGame.players);
             console.log(`Game created: ${roomId} by ${playerName}`);
         });
@@ -81,7 +81,7 @@ export const setupSocketHandlers = (io: Server) => {
                 } else {
                     // Game is in lobby
                     io.to(roomCode).emit('player_update', game.players);
-                    socket.emit('joined_game', { roomId: roomCode });
+                    socket.emit('joined_game', { roomId: roomCode, playerName });
                     console.log(`${playerName} reconnected to ${roomCode}`);
                 }
                 return;
@@ -106,25 +106,28 @@ export const setupSocketHandlers = (io: Server) => {
             socket.join(roomCode);
 
             io.to(roomCode).emit('player_update', game.players);
-            socket.emit('joined_game', { roomId: roomCode });
+            socket.emit('joined_game', { roomId: roomCode, playerName });
             console.log(`${playerName} joined ${roomCode}`);
         });
 
 
         // Starts the game, only room owner can start
-        socket.on('start_game', ({ roomId }: { roomId: string }) => {
+        socket.on('start_game', ({ roomId, playerId }: { roomId: string; playerId: string }) => {
             const game = rooms.get(roomId);
             if (!game) {
                 socket.emit('error', { message: 'Room not found' });
                 return;
             }
 
-            // Verify the socket is the owner
-            const player = game.players.find(p => p.id === socket.id);
+            // Verify the player is the owner (use playerId)
+            const player = game.players.find(p => p.playerId === playerId);
             if (!player || !player.isOwner) {
                 socket.emit('error', { message: 'You are not the owner of this game' });
                 return;
             }
+
+            // Update the player's socket.id to current socket (in case of reconnection)
+            player.id = socket.id;
 
             if (game.players.length < 4) {
                 // Minimum 4 players for Literature
@@ -191,8 +194,8 @@ export const setupSocketHandlers = (io: Server) => {
 
             const player = game.players[playerIndex];
 
-            // Validate target
-            const targetIndex = game.players.findIndex(p => p.id === targetId);
+            // Validate target (use playerId for stable identification after reconnects)
+            const targetIndex = game.players.findIndex(p => p.playerId === targetId);
             if (targetIndex === -1) {
                 socket.emit('error', { message: 'Target player not found' });
                 return;
@@ -372,8 +375,8 @@ export const setupSocketHandlers = (io: Server) => {
                 return;
             }
 
-            // Validate target
-            const targetIndex = game.players.findIndex(p => p.id === targetId);
+            // Validate target (use playerId for stable identification after reconnects)
+            const targetIndex = game.players.findIndex(p => p.playerId === targetId);
             if (targetIndex === -1) {
                 socket.emit('error', { message: 'Target player not found' });
                 return;
@@ -443,6 +446,13 @@ export const setupSocketHandlers = (io: Server) => {
             for (const [roomId, game] of rooms) {
                 const player = game.players.find(p => p.id === socket.id);
                 if (!player) continue;
+
+                // If this is the last player in the room, delete the room
+                if (game.players.length === 1) {
+                    rooms.delete(roomId);
+                    console.log(`Room ${roomId} deleted (last player disconnected)`);
+                    break;
+                }
 
                 // Don't remove player - they might reconnect with same playerId
                 const status = game.status === 'LOBBY' ? 'lobby' : 'game';
