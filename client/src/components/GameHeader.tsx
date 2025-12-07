@@ -12,12 +12,12 @@ interface GameHeaderProps {
     completedSets: CompletedSet[];
     players: Player[];
     myTeam: 'A' | 'B' | null;
-    socketId: string;
+    playerId: string;
     roomId: string;
     hand: Card[];
 }
 
-export function GameHeader({ lastAsk, scores, completedSets, players, myTeam, socketId, roomId, hand }: GameHeaderProps) {
+export function GameHeader({ lastAsk, scores, completedSets, players, myTeam, playerId, roomId, hand }: GameHeaderProps) {
     return (
         <div className="p-4 border-b bg-card flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -26,7 +26,7 @@ export function GameHeader({ lastAsk, scores, completedSets, players, myTeam, so
                 <DeclareSet
                     players={players}
                     myTeam={myTeam}
-                    socketId={socketId}
+                    playerId={playerId}
                     roomId={roomId}
                     hand={hand}
                     completedSets={completedSets}

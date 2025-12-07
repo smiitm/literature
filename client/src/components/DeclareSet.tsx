@@ -22,13 +22,13 @@ import type { Player, Card, CompletedSet } from '@/types';
 interface DeclareSetProps {
     players: Player[];
     myTeam: 'A' | 'B' | null;
-    socketId: string;
+    playerId: string;
     roomId: string;
     hand: Card[];
     completedSets: CompletedSet[];
 }
 
-export function DeclareSet({ players, myTeam, socketId, roomId, hand, completedSets }: DeclareSetProps) {
+export function DeclareSet({ players, myTeam, playerId, roomId, hand, completedSets }: DeclareSetProps) {
     const [open, setOpen] = useState(false);
     const [declareSet, setDeclareSet] = useState<string>('');
     const [declarationMap, setDeclarationMap] = useState<Record<string, string>>({});
@@ -45,10 +45,7 @@ export function DeclareSet({ players, myTeam, socketId, roomId, hand, completedS
     );
 
     // Auto-assign cards that the player holds
-    const myPlayerId = useMemo(() => 
-        players.find(p => p.id === socketId)?.playerId || '',
-        [players, socketId]
-    );
+    const myPlayerId = playerId;
 
     const myCardKeys = useMemo(() => 
         new Set(hand.map(c => getCardKey(c))),
@@ -174,7 +171,7 @@ export function DeclareSet({ players, myTeam, socketId, roomId, hand, completedS
                                                         <SelectValue placeholder="Select..." />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {teamPlayers.filter(p => p.id !== socketId).map(p => (
+                                                        {teamPlayers.filter(p => p.playerId !== playerId).map(p => (
                                                             <SelectItem key={p.playerId} value={p.playerId} className="text-xs">
                                                                 {p.name}
                                                             </SelectItem>

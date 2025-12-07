@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { socket } from '../socket';
+import { getPlayerId } from '../lib/socketManager';
 import { Button } from '@/components/ui/button';
 import { GameHeader } from '@/components/GameHeader';
 import { PlayerGrid } from '@/components/PlayerGrid';
@@ -25,7 +26,10 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
     const [scores, setScores] = useState<{ A: number, B: number }>({ A: 0, B: 0 });
     const [completedSets, setCompletedSets] = useState<CompletedSet[]>([]);
 
-    const isMyTurn = players[turnIndex]?.id === socket.id;
+    // Cache playerId to avoid multiple localStorage reads
+    const myPlayerId = useMemo(() => getPlayerId(), []);
+
+    const isMyTurn = players[turnIndex]?.playerId === myPlayerId;
 
     useEffect(() => {
         socket.on('game_update', (data) => {
@@ -72,7 +76,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
                 completedSets={completedSets}
                 players={players}
                 myTeam={myTeam}
-                socketId={socket.id || ''}
+                playerId={myPlayerId}
                 roomId={roomId}
                 hand={hand}
             />
@@ -81,7 +85,7 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
                 <PlayerGrid
                     players={players}
                     turnIndex={turnIndex}
-                    socketId={socket.id || ''}
+                    playerId={myPlayerId}
                 />
 
                 <AskCard
@@ -89,12 +93,12 @@ export function Game({ initialHand, initialTurnIndex, initialPlayers, myTeam, ro
                     players={players}
                     turnState={turnState}
                     myTeam={myTeam}
-                    socketId={socket.id || ''}
+                    playerId={myPlayerId}
                     roomId={roomId}
                 />
             </div>
 
-            <PlayerHand hand={hand} myTeam={myTeam} playerName={players.find(p => p.id === socket.id)?.name || 'You'} />
+            <PlayerHand hand={hand} myTeam={myTeam} playerName={players.find(p => p.playerId === myPlayerId)?.name || 'You'} />
         </div>
     );
 }
