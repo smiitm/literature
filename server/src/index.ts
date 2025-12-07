@@ -6,10 +6,15 @@ import { setupSocketHandlers } from './socketHandlers';
 
 const app = express();
 
+// Health check endpoint
+app.get('/', (req, res) => {
+    res.status(200).json({ status: 'ok', message: 'Literature game server is running' });
+});
+
 // Configure CORS
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:5173', 'http://localhost:5174'];
+    : ['http://localhost:5173'];
 
 app.use(cors({
     origin: allowedOrigins,
