@@ -5,13 +5,23 @@ import cors from 'cors';
 import { setupSocketHandlers } from './socketHandlers';
 
 const app = express();
-app.use(cors());
+
+// Configure CORS
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:5173', 'http://localhost:5174'];
+
+app.use(cors({
+    origin: allowedOrigins,
+    credentials: false
+}));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: "*", // Allow all for dev
-        methods: ["GET", "POST"]
+        origin: allowedOrigins,
+        methods: ["GET", "POST"],
+        credentials: false
     }
 });
 

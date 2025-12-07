@@ -35,9 +35,9 @@ export const getSuitColor = (suit: string) => {
 };
 
 export const getTeamColor = (team: 'A' | 'B' | null) => {
-    if (team === 'A') return '#3b82f6';
-    if (team === 'B') return '#eab308';
-    return '#888';
+    if (team === 'A') return 'hsl(var(--team-a))';
+    if (team === 'B') return 'hsl(var(--team-b))';
+    return 'hsl(var(--team-neutral))';
 };
 
 export const getSetCards = (setName: string): Card[] => {

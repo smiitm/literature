@@ -110,7 +110,7 @@ export function DeclareSet({ players, myTeam, playerId, roomId, hand, completedS
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
-                <Button variant="destructive" size="sm">
+                <Button variant="default" size="sm" className="px-3 h-8">
                     Declare Set
                 </Button>
             </DialogTrigger>

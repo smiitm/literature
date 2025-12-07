@@ -1,8 +1,8 @@
 import { socket } from '../socket';
 import { disconnectSocket, getPlayerId } from '../lib/socketManager';
-import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Button } from '@/components/ui/button';
 import type { Player } from '@/types';
+import { getTeamColor } from '@/lib/gameUtils';
 import { Crown, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 
@@ -55,26 +55,29 @@ export function Lobby({ roomId, players }: LobbyProps) {
         </li>
     );
 
-    const TeamSection = ({ team, teamPlayers, color }: { team: 'A' | 'B'; teamPlayers: Player[]; color: 'blue' | 'red' }) => {
+    const TeamSection = ({ team, teamPlayers }: { team: 'A' | 'B'; teamPlayers: Player[] }) => {
         const isInThisTeam = currentPlayer?.team === team;
-        const borderColor = color === 'blue' ? 'border-l-blue-500' : 'border-l-red-500';
-        const textColor = color === 'blue' ? 'text-blue-500' : 'text-red-500';
-        const btnBg = color === 'blue' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-red-500 hover:bg-red-600';
+        const teamColor = getTeamColor(team);
+        const joinedBackground = `${teamColor}33`;
 
         return (
-            <div className={`border-l-4 ${borderColor} pl-4`}>
+            <div className="border-l-4 pl-4" style={{ borderLeftColor: teamColor }}>
                 <div className="flex items-center justify-between mb-2">
-                    <h3 className={`font-semibold ${textColor}`}>Team {team}</h3>
+                    <h3 className="font-semibold" style={{ color: teamColor }}>Team {team}</h3>
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">{teamPlayers.length} players</span>
                         {isInThisTeam ? (
-                            <span className={`text-xs px-2 py-1 rounded font-medium ${color === 'blue' ? 'bg-blue-500/20 text-blue-500' : 'bg-red-500/20 text-red-500'}`}>
+                            <span
+                                className="text-xs px-2 py-1 rounded font-medium"
+                                style={{ backgroundColor: joinedBackground, color: teamColor }}
+                            >
                                 Joined
                             </span>
                         ) : (
-                            <button 
-                                onClick={() => handleJoinTeam(team)} 
-                                className={`text-xs px-2 py-1 rounded font-medium ${btnBg} text-white cursor-pointer`}
+                            <button
+                                onClick={() => handleJoinTeam(team)}
+                                className="text-xs px-2 py-1 rounded font-medium text-white cursor-pointer transition-opacity hover:opacity-90"
+                                style={{ backgroundColor: teamColor }}
                             >
                                 Join
                             </button>
@@ -94,10 +97,6 @@ export function Lobby({ roomId, players }: LobbyProps) {
 
     return (
         <div className="flex flex-col items-center min-h-screen bg-background text-foreground p-4">
-            <div className="absolute top-4 right-4">
-                <ModeToggle />
-            </div>
-
             {/* Header */}
             <div className="text-center mb-6 mt-8">
                 <h1 className="text-3xl font-bold mb-2">Game Lobby</h1>
@@ -116,10 +115,10 @@ export function Lobby({ roomId, players }: LobbyProps) {
                     {/* Teams */}
                     <div className="flex-1 space-y-4">
                         <div className="bg-card border rounded-lg p-5">
-                            <TeamSection team="A" teamPlayers={teamA} color="blue" />
+                            <TeamSection team="A" teamPlayers={teamA} />
                         </div>
                         <div className="bg-card border rounded-lg p-5">
-                            <TeamSection team="B" teamPlayers={teamB} color="red" />
+                            <TeamSection team="B" teamPlayers={teamB} />
                         </div>
                     </div>
 

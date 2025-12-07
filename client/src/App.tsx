@@ -4,7 +4,6 @@ import { Lobby } from './pages/Lobby';
 import { Game } from './pages/Game';
 import { socket } from './socket';
 import { connectSocket, getSession, getPlayerId, saveSession, clearSession } from './lib/socketManager';
-import { ThemeProvider } from './components/ui/theme-provider';
 import { Toaster, toast } from './components/ui/sonner';
 import type { Player } from './types';
 
@@ -108,17 +107,17 @@ function App() {
   // Show loading during reconnection
   if (isReconnecting) {
     return (
-      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <>
         <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
           <div className="text-2xl font-semibold">Reconnecting...</div>
         </div>
         <Toaster richColors position="top-right" />
-      </ThemeProvider>
+      </>
     );
   }
 
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+    <>
       {gameState === 'HOME' && <Home />}
       {gameState === 'LOBBY' && <Lobby roomId={roomId} players={players} />}
       {gameState === 'GAME' && (
@@ -131,7 +130,7 @@ function App() {
         />
       )}
       <Toaster richColors position="top-right" />
-    </ThemeProvider>
+    </>
   );
 }
 

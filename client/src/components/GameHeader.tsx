@@ -1,4 +1,3 @@
-import { ModeToggle } from './ui/mode-toggle';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getTeamColor, getSuitIcon } from '@/lib/gameUtils';
@@ -50,7 +49,7 @@ export function GameHeader({ lastAsk, scores, completedSets, players, myTeam, pl
                 )}
             </div>
 
-            {/* Scores & Toggle */}
+            {/* Scores */}
             <div className="flex items-center gap-2">
                 <Popover>
                     <PopoverTrigger asChild>
@@ -93,7 +92,6 @@ export function GameHeader({ lastAsk, scores, completedSets, players, myTeam, pl
                 <div className="px-2 py-1 rounded font-bold text-white" style={{ backgroundColor: getTeamColor('B') }}>
                     {scores.B}
                 </div>
-                <ModeToggle />
             </div>
         </div>
     );

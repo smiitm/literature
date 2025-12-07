@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { socket } from '../socket';
 import { connectSocket, getPlayerId } from '../lib/socketManager';
 import { toast } from '@/components/ui/sonner';
-import { ModeToggle } from '@/components/ui/mode-toggle';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -10,10 +9,10 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { WordRotate } from "@/components/ui/WordRotate"
 
 export function Home() {
     const [playerName, setPlayerName] = useState('');
@@ -55,19 +54,15 @@ export function Home() {
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground relative">
-            <div className="absolute top-4 right-4">
-                <ModeToggle />
-            </div>
-
-            <h1 className="text-9xl font-bold tracking-tight">Literature</h1>
-            <p className="text-3xl mb-16 text-muted-foreground">probability to 50/50 hi hai</p>
-
+            <h1 className="text-8xl font-bold tracking-tight">Literature</h1>
+            <WordRotate className="text-3xl mb-6 text-muted-foreground" words={["probability to 50/50 hi hai", "Mere patte dekh liye isne"]} />
+ 
             <div className="flex gap-6">
                 <Dialog>
                     <DialogTrigger asChild>
                         <Button
                             size="lg"
-                            className="text-lg font-semibold h-14 px-8 shadow-lg hover:scale-105 transition-transform"
+                            className="text-lg font-semibold h-10 px-4"
                         >
                             Create Room
                         </Button>
@@ -78,7 +73,7 @@ export function Home() {
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
-                                <Label htmlFor="create-name">Your Name</Label>
+                                <Label htmlFor="create-name p-4">Your Name</Label>
                                 <Input
                                     id="create-name"
                                     placeholder="Enter your name"
@@ -89,18 +84,15 @@ export function Home() {
                                 />
                             </div>
                         </div>
-                        <DialogFooter>
-                            <Button onClick={handleCreateRoom}>Create</Button>
-                        </DialogFooter>
+                        <Button className="w-fit" onClick={handleCreateRoom}>Create</Button>
                     </DialogContent>
                 </Dialog>
 
                 <Dialog>
                     <DialogTrigger asChild>
                         <Button
-                            variant="secondary"
                             size="lg"
-                            className="text-lg font-semibold h-14 px-8 shadow-lg hover:scale-105 transition-transform"
+                            className="text-lg font-semibold h-10 px-6"
                         >
                             Join Room
                         </Button>
@@ -131,9 +123,7 @@ export function Home() {
                                 />
                             </div>
                         </div>
-                        <DialogFooter>
-                            <Button onClick={handleJoinRoom}>Join</Button>
-                        </DialogFooter>
+                        <Button onClick={handleJoinRoom}>Join</Button>
                     </DialogContent>
                 </Dialog>
             </div>
